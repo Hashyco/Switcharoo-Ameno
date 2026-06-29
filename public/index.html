@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Switcharoo Ameno Pro</title>
+<link rel="icon" href="/assets/league.png">
+<link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+<div id="toast-root" class="toast-root"></div>
+<header class="site-header">
+  <div class="brand-wrap"><img class="brand-logo" src="/assets/league.png"><div><div class="eyebrow">PLATAFORMA OFICIAL</div><h1>SWITCHAROO AMENO</h1><p>Gestión profesional del torneo</p></div></div>
+  <div class="nav-user"><span id="session-label" class="muted">Invitado</span><button id="login-btn" class="btn btn-gold">Entrar</button></div>
+</header>
+<nav class="main-nav" id="nav">
+  <button data-page="home" class="active">Inicio</button><button data-page="teams">Equipos</button>
+  <button data-page="league">Liguilla</button><button data-page="bracket">Brackets</button>
+  <button data-page="stats">Estadísticas</button><button data-page="admin" class="admin-only hidden">Administración</button>
+</nav>
+<main id="app" class="app-shell"><section class="loading-card"><div><div class="spinner"></div><h2>Cargando...</h2></div></section></main>
+<footer class="site-footer"><strong>Switcharoo Ameno Pro</strong><span>SQLite · Railway · Acceso por capitanes</span></footer>
+
+<dialog id="login-modal" class="modal">
+<form id="login-form" class="modal-card">
+<button type="button" class="modal-close" data-close="login-modal">×</button>
+<img src="/assets/league.png" class="modal-logo"><h2>Iniciar sesión</h2>
+<label>Rol<select id="role"><option value="captain">Capitán</option><option value="admin">Administrador</option></select></label>
+<label id="team-label">Equipo<select id="login-team"></select></label>
+<label>PIN<input id="pin" type="password" required></label>
+<button class="btn btn-gold full">Entrar</button>
+<div class="demo-credentials">Iniciales: Admin AMENO2026 · Inferno 1111 · Tidal 2222 · Terra 3333 · Storm 4444</div>
+</form></dialog>
+
+<dialog id="result-modal" class="modal modal-wide"><div class="modal-card result-modal-card">
+<button type="button" class="modal-close" data-close="result-modal">×</button><div id="result-root"></div>
+</div></dialog>
+
+<script src="/app.js"></script>
+</body></html>
