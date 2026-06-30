@@ -291,6 +291,11 @@ async function submitResultWizard(){
     toast("Resultado enviado para aprobación","success");render();
   }catch(err){toast(err.message,"error")}
 };
+const PB_POOLS={
+  "Hardpoint":["Sake","Colossus","Den","Scar","Gridlock","Hacienda"],
+  "Search & Destroy":["Den","Gridlock","Raid","Fringe","Sake","Hacienda"],
+  "Overload":["Den","Scar","Gridlock","Exposure"]
+};
 function stopPickBanRefresh(){
   if(S.pickBanTimer){clearInterval(S.pickBanTimer);S.pickBanTimer=null}
   S.pickBanMatchId=null;
