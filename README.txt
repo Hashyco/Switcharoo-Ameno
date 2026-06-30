@@ -81,3 +81,21 @@ ACTUALIZACIÓN 2.5
 - Nueva sección exclusiva Grand Final.
 - Grand Final con versus, logos, referentes, comparativa y estadísticas de finalistas.
 - Grand Final configurada como Pick & Ban Mejor de 7.
+
+
+CORRECCIÓN 2.5.1
+- Restaurado el listado de mapas utilizado por el Pick & Ban interactivo.
+- Corregido el error del navegador: PB_POOLS is not defined.
+- Se mantienen el registro rápido de resultados y la sección Grand Final.
+
+
+CORRECCIÓN 2.5.2
+- Corregida la secuencia del Pick & Ban de la Grand Final Bo7:
+  1. Hardpoint
+  2. ByD / Search & Destroy
+  3. Overload
+  4. Hardpoint
+  5. ByD / Search & Destroy
+  6. Overload
+  7. SnD / Search & Destroy
+- El séptimo mapa ya no será Hardpoint.

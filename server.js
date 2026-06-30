@@ -194,7 +194,7 @@ const POOLS = {
 };
 function sequence(bestOf=5){
   return bestOf===7
-    ? ["Hardpoint","Search & Destroy","Overload","Hardpoint","Search & Destroy","Overload","Hardpoint"]
+    ? ["Hardpoint","Search & Destroy","Overload","Hardpoint","Search & Destroy","Overload","Search & Destroy"]
     : ["Hardpoint","Search & Destroy","Overload","Hardpoint","Search & Destroy"];
 }
 function randomMaps(bestOf=5){
