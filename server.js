@@ -222,7 +222,7 @@ const LEAGUE_MAPS_BY_ROUND = {
     {index:1, mode:"Search & Destroy", map:"Raid"},
     {index:2, mode:"Overload", map:"Gridlock"},
     {index:3, mode:"Hardpoint", map:"Colossus"},
-    {index:4, mode:"Search & Destroy", map:"Fringe"}
+    {index:4, mode:"Search & Destroy", map:"Den"}
   ],
   3: [
     {index:0, mode:"Hardpoint", map:"Scar"},

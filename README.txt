@@ -117,7 +117,7 @@ JORNADA 2
 2. Search & Destroy: Raid
 3. Overload: Gridlock
 4. Hardpoint: Colossus
-5. Search & Destroy: Fringe
+5. Search & Destroy: Den
 
 JORNADA 3
 1. Hardpoint: Scar
@@ -129,3 +129,8 @@ JORNADA 3
 IMPORTANTE
 - Si la liguilla ya fue generada anteriormente, reinicia el torneo desde Administración
   y vuelve a pulsar Generar liguilla para que se apliquen estos mapas.
+
+
+CORRECCIÓN 2.5.4
+- Jornada 2, mapa 5 corregido:
+  Search & Destroy: Den
