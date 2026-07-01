@@ -208,6 +208,30 @@ function randomMaps(bestOf=5){
     return {index,mode,map};
   });
 }
+
+const LEAGUE_MAPS_BY_ROUND = {
+  1: [
+    {index:0, mode:"Hardpoint", map:"Den"},
+    {index:1, mode:"Search & Destroy", map:"Gridlock"},
+    {index:2, mode:"Overload", map:"Den"},
+    {index:3, mode:"Hardpoint", map:"Sake"},
+    {index:4, mode:"Search & Destroy", map:"Fringe"}
+  ],
+  2: [
+    {index:0, mode:"Hardpoint", map:"Sake"},
+    {index:1, mode:"Search & Destroy", map:"Raid"},
+    {index:2, mode:"Overload", map:"Gridlock"},
+    {index:3, mode:"Hardpoint", map:"Colossus"},
+    {index:4, mode:"Search & Destroy", map:"Fringe"}
+  ],
+  3: [
+    {index:0, mode:"Hardpoint", map:"Scar"},
+    {index:1, mode:"Search & Destroy", map:"Sake"},
+    {index:2, mode:"Overload", map:"Den"},
+    {index:3, mode:"Hardpoint", map:"Hacienda"},
+    {index:4, mode:"Search & Destroy", map:"Raid"}
+  ]
+};
 function fullMatch(idValue){
   const match=db.prepare("SELECT * FROM matches WHERE id=?").get(idValue);
   if(!match) return null;
@@ -327,7 +351,7 @@ app.post("/api/admin/league",auth("admin"),(req,res)=>{
   try{
     let n=1;
     schedule.forEach((round,ri)=>{
-      const maps=randomMaps(5);
+      const maps=LEAGUE_MAPS_BY_ROUND[ri+1];
       round.forEach(pair=>{
         const mid=`L${n++}`;
         im.run(mid,"league","Liguilla",ri+1,`Jornada ${ri+1}`,pair[0],pair[1],5,"scheduled",now(),now());

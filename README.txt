@@ -99,3 +99,33 @@ CORRECCIÓN 2.5.2
   6. Overload
   7. SnD / Search & Destroy
 - El séptimo mapa ya no será Hardpoint.
+
+
+ACTUALIZACIÓN 2.5.3
+- La fase de liguilla ya no genera mapas aleatorios.
+- Los mapas quedan predeterminados por jornada:
+
+JORNADA 1
+1. Hardpoint: Den
+2. Search & Destroy: Gridlock
+3. Overload: Den
+4. Hardpoint: Sake
+5. Search & Destroy: Fringe
+
+JORNADA 2
+1. Hardpoint: Sake
+2. Search & Destroy: Raid
+3. Overload: Gridlock
+4. Hardpoint: Colossus
+5. Search & Destroy: Fringe
+
+JORNADA 3
+1. Hardpoint: Scar
+2. Search & Destroy: Sake
+3. Overload: Den
+4. Hardpoint: Hacienda
+5. Search & Destroy: Raid
+
+IMPORTANTE
+- Si la liguilla ya fue generada anteriormente, reinicia el torneo desde Administración
+  y vuelve a pulsar Generar liguilla para que se apliquen estos mapas.
