@@ -257,20 +257,36 @@ function standings(){
     .map((t,i)=>({...t,position:i+1}));
 }
 function playerStats(){
-  return db.prepare(`
+  const rows = db.prepare(`
     SELECT p.id,p.name,p.team_id,t.name team_name,t.logo,t.color,
-      COUNT(DISTINCT ps.match_map_id) maps,
-      COALESCE(SUM(ps.kills),0) kills,
-      COALESCE(SUM(ps.deaths),0) deaths,
-      COALESCE(SUM(ps.hill_time),0) hill_time,
-      COALESCE(SUM(ps.plants),0) plants,
-      COALESCE(SUM(ps.defuses),0) defuses,
-      COALESCE(SUM(ps.overloads),0) overloads
+      COUNT(DISTINCT CASE WHEN m.approved=1 AND ps.match_map_id IS NOT NULL THEN ps.match_map_id END) maps,
+      COUNT(DISTINCT CASE WHEN m.approved=1 AND mm.mode='Hardpoint' AND ps.match_map_id IS NOT NULL THEN ps.match_map_id END) hardpoint_maps,
+      COUNT(DISTINCT CASE WHEN m.approved=1 AND mm.mode='Overload' AND ps.match_map_id IS NOT NULL THEN ps.match_map_id END) overload_maps,
+      COALESCE(SUM(CASE WHEN m.approved=1 THEN ps.kills ELSE 0 END),0) kills,
+      COALESCE(SUM(CASE WHEN m.approved=1 THEN ps.deaths ELSE 0 END),0) deaths,
+      COALESCE(SUM(CASE WHEN m.approved=1 THEN ps.hill_time ELSE 0 END),0) hill_time,
+      COALESCE(SUM(CASE WHEN m.approved=1 THEN ps.plants ELSE 0 END),0) plants,
+      COALESCE(SUM(CASE WHEN m.approved=1 THEN ps.defuses ELSE 0 END),0) defuses,
+      COALESCE(SUM(CASE WHEN m.approved=1 THEN ps.overloads ELSE 0 END),0) overloads
     FROM players p
     JOIN teams t ON t.id=p.team_id
     LEFT JOIN player_stats ps ON ps.player_id=p.id
-    GROUP BY p.id ORDER BY kills DESC, deaths ASC
-  `).all().map(r=>({...r,kd:r.deaths?r.kills/r.deaths:r.kills}));
+    LEFT JOIN match_maps mm ON mm.id=ps.match_map_id
+    LEFT JOIN matches m ON m.id=mm.match_id
+    GROUP BY p.id
+  `).all();
+
+  return rows.map(r=>({
+    ...r,
+    kd:r.deaths ? r.kills/r.deaths : r.kills,
+    avg_hill_time:r.hardpoint_maps ? r.hill_time/r.hardpoint_maps : 0,
+    avg_overloads:r.overload_maps ? r.overloads/r.overload_maps : 0
+  })).sort((a,b)=>
+    b.kd-a.kd ||
+    b.avg_hill_time-a.avg_hill_time ||
+    b.avg_overloads-a.avg_overloads ||
+    b.kills-a.kills
+  );
 }
 function teamStats(){
   const rows = db.prepare(`
@@ -433,6 +449,11 @@ app.post("/api/results/:matchId",auth(),upload.single("evidence"),(req,res)=>{
   const m=fullMatch(req.params.matchId);
   if(!m||!m.team_a||!m.team_b) return res.status(400).json({error:"Partido no disponible."});
   if(req.user.role!=="admin"&&![m.team_a,m.team_b].includes(req.user.teamId)) return res.status(403).json({error:"Tu equipo no participa."});
+
+  // Solo el administrador puede modificar resultados ya aprobados.
+  if(m.approved===1 && req.user.role!=="admin"){
+    return res.status(403).json({error:"Este resultado ya fue aprobado. Solo el administrador puede modificarlo."});
+  }
   let payload;
   try{payload=JSON.parse(req.body.payload||"{}")}catch{return res.status(400).json({error:"Datos inválidos."})}
   const maps=payload.maps||[];
@@ -443,13 +464,23 @@ app.post("/api/results/:matchId",auth(),upload.single("evidence"),(req,res)=>{
     if(r.scoreA===""||r.scoreB===""||r.scoreA==null||r.scoreB==null) continue;
     const sa=Number(r.scoreA),sb=Number(r.scoreB);
     if(!Number.isInteger(sa)||!Number.isInteger(sb)||sa===sb) return res.status(400).json({error:`Marcador inválido en M${i+1}.`});
+    if(sa<0||sb<0) return res.status(400).json({error:`Marcador negativo inválido en M${i+1}.`});
     if(sa>sb)wa++;else wb++;
   }
-  if(wa<required&&wb<required) return res.status(400).json({error:`La serie necesita ${required} mapas ganados.`});
+  if(wa===0&&wb===0) return res.status(400).json({error:"Debes registrar al menos un mapa con marcador válido."});
+  if(wa<required&&wb<required) return res.status(400).json({error:`La serie necesita ${required} mapas ganados. Marcador actual de serie: ${wa}-${wb}.`});
   const winner=wa>wb?m.team_a:m.team_b;
-  if(req.user.role==="captain"&&req.user.teamId!==winner) return res.status(403).json({error:"Solo el capitán ganador puede enviar."});
+
+  // Desde v2.5.5 cualquier capitán participante puede enviar el resultado.
+  // El administrador sigue siendo quien aprueba o rechaza el reporte.
   db.exec("BEGIN");
   try{
+    // Al editar, limpia datos previos del partido para recalcular estadísticas sin duplicarlas.
+    for(const mm of m.maps){
+      db.prepare("DELETE FROM player_stats WHERE match_map_id=?").run(mm.id);
+      db.prepare("UPDATE match_maps SET score_a=NULL,score_b=NULL,winner_id=NULL,played=0 WHERE id=?").run(mm.id);
+    }
+
     maps.forEach((r,i)=>{
       if(r.scoreA===""||r.scoreB===""||r.scoreA==null||r.scoreB==null)return;
       const mm=m.maps[i],sa=Number(r.scoreA),sb=Number(r.scoreB),mw=sa>sb?m.team_a:m.team_b;
@@ -463,9 +494,12 @@ app.post("/api/results/:matchId",auth(),upload.single("evidence"),(req,res)=>{
           .run(id("stat"),mm.id,s.playerId,Number(s.kills)||0,Number(s.deaths)||0,Number(s.hillTime)||0,Number(s.plants)||0,Number(s.defuses)||0,Number(s.overloads)||0);
       }
     });
-    const ev=req.file?`/uploads/${req.file.filename}`:null;
-    db.prepare(`UPDATE matches SET winner_id=?,score_a=?,score_b=?,evidence_path=?,notes=?,status='pending',approved=0,updated_at=? WHERE id=?`)
-      .run(winner,wa,wb,ev,String(payload.notes||"").slice(0,1000),now(),m.id);
+
+    const ev=req.file?`/uploads/${req.file.filename}`:m.evidence_path;
+    const statusValue=req.user.role==="admin" ? "completed" : "pending";
+    const approvedValue=req.user.role==="admin" ? 1 : 0;
+    db.prepare(`UPDATE matches SET winner_id=?,score_a=?,score_b=?,evidence_path=?,notes=?,status=?,approved=?,updated_at=? WHERE id=?`)
+      .run(winner,wa,wb,ev,String(payload.notes||"").slice(0,1000),statusValue,approvedValue,now(),m.id);
     db.exec("COMMIT");res.json(state());
   }catch(e){db.exec("ROLLBACK");res.status(500).json({error:e.message});}
 });

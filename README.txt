@@ -134,3 +134,30 @@ IMPORTANTE
 CORRECCIÓN 2.5.4
 - Jornada 2, mapa 5 corregido:
   Search & Destroy: Den
+
+
+CORRECCIÓN 2.5.5
+- Ahora cualquier capitán participante del partido puede enviar el resultado.
+- El resultado sigue quedando pendiente de aprobación por el administrador.
+- Se mejoraron mensajes de error al enviar resultados.
+- Se aclara en pantalla que el reporte se envía para aprobación.
+- No es necesario reiniciar el torneo ni borrar la base de datos.
+
+
+CORRECCIÓN 2.5.6
+- El administrador ahora puede editar resultados ya aprobados de liguilla y brackets.
+- Se agregó el botón "Editar resultado" para el admin.
+- Al editar, se limpian las estadísticas anteriores del partido y se recalculan con los nuevos datos.
+- La corrección del admin se guarda como resultado aprobado automáticamente.
+- No es necesario reiniciar torneo ni borrar la base de datos.
+
+
+ACTUALIZACIÓN 2.5.7
+- La tabla de estadísticas de jugadores ahora se ordena por:
+  1. Mejor K/D promedio.
+  2. Promedio de Hill Time.
+  3. Promedio de Overloads.
+- Se agregaron columnas de K/D Prom., Hill Time Prom. y Overloads Prom.
+- Se mantienen los totales para revisión.
+- La tabla de jugadores de la Grand Final también usa el mismo criterio.
+- No es necesario reiniciar torneo ni borrar la base de datos.
