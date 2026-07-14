@@ -40,7 +40,7 @@ function teamStatsTable(){
 function finalistPlayerStats(teamId){
   return (S.state.playerStats||[])
     .filter(p=>p.team_id===teamId)
-    .sort((a,b)=>Number(b.kd)-Number(a.kd)||Number(b.avg_hill_time||0)-Number(a.avg_hill_time||0)||Number(b.avg_overloads||0)-Number(a.avg_overloads||0)||b.kills-a.kills);
+    .sort((a,b)=>Number(b.performance_score||0)-Number(a.performance_score||0)||Number(b.kd)-Number(a.kd)||b.kills-a.kills);
 }
 function referencePlayers(teamId){
   return finalistPlayerStats(teamId).slice(0,2);
@@ -63,14 +63,14 @@ function finalTeamPanel(t,side){
       <h4>Jugadores referentes</h4>
       ${refs.length?refs.map((p,i)=>`<div class="gf-player">
         <span class="gf-player-rank">${i+1}</span>
-        <div><strong>${esc(p.name)}</strong><small>${p.kills} bajas · K/D ${Number(p.kd).toFixed(2)}</small></div>
+        <div><strong>${esc(p.name)}</strong><small>Puntaje ${Number(p.performance_score||0).toFixed(1)} · K/D ${Number(p.kd).toFixed(2)}</small></div>
       </div>`).join(""):'<p class="muted">Estadísticas pendientes.</p>'}
     </div>
   </article>`;
 }
 function grandFinalPlayerTable(finalists){
   const ids=new Set(finalists.map(t=>t.id));
-  const rows=(S.state.playerStats||[]).filter(p=>ids.has(p.team_id)).sort((a,b)=>Number(b.kd)-Number(a.kd)||Number(b.avg_hill_time||0)-Number(a.avg_hill_time||0)||Number(b.avg_overloads||0)-Number(a.avg_overloads||0)||b.kills-a.kills);
+  const rows=(S.state.playerStats||[]).filter(p=>ids.has(p.team_id)).sort((a,b)=>Number(b.performance_score||0)-Number(a.performance_score||0)||Number(b.kd)-Number(a.kd)||b.kills-a.kills);
   return `<div class="table-wrap"><table><thead><tr><th>Pos.</th><th>Jugador</th><th>Equipo</th><th>Mapas</th><th>K/D Prom.</th><th>Hill Prom.</th><th>Overloads Prom.</th><th>Bajas</th><th>Muertes</th><th>Hill Total</th><th>Overloads Total</th></tr></thead>
   <tbody>${rows.map((p,i)=>`<tr><td><span class="rank">${i+1}</span></td><td><strong>${esc(p.name)}</strong></td><td>${esc(p.team_name)}</td><td>${p.maps}</td><td><strong>${Number(p.kd).toFixed(2)}</strong></td><td>${Number(p.avg_hill_time||0).toFixed(1)}s</td><td>${Number(p.avg_overloads||0).toFixed(2)}</td><td>${p.kills}</td><td>${p.deaths}</td><td>${p.hill_time}s</td><td>${p.overloads}</td></tr>`).join("")}</tbody></table></div>`;
 }
@@ -121,10 +121,10 @@ function statsPage(){
   </section>
   <h3 class="section-title">Estadísticas por equipos</h3>
   <section class="card card-body">${teamStatsTable()}</section>
-  <h3 class="section-title">Ranking de jugadores por promedios</h3>
+  <h3 class="section-title">Ranking general de rendimiento</h3>
   <section class="card card-body">
-    <p class="muted">El orden se determina por mejor K/D, luego por promedio de Hill Time por mapa de Hardpoint y finalmente por promedio de Overloads por mapa de Overload.</p>
-    <div class="table-wrap"><table><thead><tr><th>Pos.</th><th>Jugador</th><th>Equipo</th><th>Mapas</th><th>K/D Prom.</th><th>Hill Prom.</th><th>Overloads Prom.</th><th>Bajas</th><th>Muertes</th><th>Hill Total</th><th>Overloads Total</th><th>Plantadas</th><th>Desplantadas</th></tr></thead><tbody>${S.state.playerStats.map((p,i)=>`<tr><td><span class="rank">${i+1}</span></td><td><strong>${esc(p.name)}</strong></td><td>${esc(p.team_name)}</td><td>${p.maps}</td><td><strong>${Number(p.kd).toFixed(2)}</strong></td><td>${Number(p.avg_hill_time||0).toFixed(1)}s</td><td>${Number(p.avg_overloads||0).toFixed(2)}</td><td>${p.kills}</td><td>${p.deaths}</td><td>${p.hill_time}s</td><td>${p.overloads}</td><td>${p.plants}</td><td>${p.defuses}</td></tr>`).join("")}</tbody></table></div>
+    <p class="muted">Puntaje normalizado: 50% K/D, 35% promedio de Hill Time y 15% promedio de Overloads. Cada categoría se compara con el mejor valor registrado.</p>
+    <div class="table-wrap"><table><thead><tr><th>Pos.</th><th>Jugador</th><th>Equipo</th><th>Puntaje</th><th>K/D</th><th>K/D Norm.</th><th>Hill Prom.</th><th>Hill Norm.</th><th>Overloads Prom.</th><th>Overloads Norm.</th><th>Mapas</th><th>Bajas</th><th>Muertes</th></tr></thead><tbody>${S.state.playerStats.map((p,i)=>`<tr><td><span class="rank">${i+1}</span></td><td><strong>${esc(p.name)}</strong></td><td>${esc(p.team_name)}</td><td><strong>${Number(p.performance_score||0).toFixed(1)}</strong></td><td>${Number(p.kd).toFixed(2)}</td><td>${Number(p.kd_normalized||0).toFixed(1)}</td><td>${Number(p.avg_hill_time||0).toFixed(1)}s</td><td>${Number(p.hill_normalized||0).toFixed(1)}</td><td>${Number(p.avg_overloads||0).toFixed(2)}</td><td>${Number(p.overloads_normalized||0).toFixed(1)}</td><td>${p.maps}</td><td>${p.kills}</td><td>${p.deaths}</td></tr>`).join("")}</tbody></table></div>
   </section>`;
 }
 function adminPage(){

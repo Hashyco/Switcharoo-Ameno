@@ -153,3 +153,20 @@ ACTUALIZACIÓN 2.5.5-stats.1
 - Solo se contabilizan resultados aprobados.
 - La Grand Final usa el mismo criterio para ordenar jugadores y referentes.
 - No requiere reiniciar el torneo ni borrar la base de datos.
+
+
+CORRECCIÓN 2.5.5-stats.2
+- Se corrigieron 95 enlaces internos dentro de package-lock.json.
+- Todos los paquetes ahora se descargan desde https://registry.npmjs.org/
+- Se agregó .npmrc para fijar el registro público de npm.
+- Esta corrección resuelve el npm install que quedaba cargando en Railway.
+
+
+ACTUALIZACIÓN 2.5.5-score.1
+- No modifica ni elimina datos existentes.
+- Ranking ponderado:
+  50% K/D
+  35% Hill Time promedio por mapa de Hardpoint
+  15% Overloads promedio por mapa de Overload
+- Cada categoría se normaliza de 0 a 100 respecto al mejor valor.
+- La tabla se ordena por el puntaje final.

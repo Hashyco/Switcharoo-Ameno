@@ -280,14 +280,35 @@ function playerStats(){
     LEFT JOIN match_maps mm ON mm.id=ps.match_map_id
     LEFT JOIN matches m ON m.id=mm.match_id
     GROUP BY p.id
-  `).all();
-
-  return rows.map(r=>({
+  `).all().map(r=>({
     ...r,
     kd:r.deaths ? r.kills/r.deaths : r.kills,
     avg_hill_time:r.hardpoint_maps ? r.hill_time/r.hardpoint_maps : 0,
     avg_overloads:r.overload_maps ? r.overloads/r.overload_maps : 0
-  })).sort((a,b)=>
+  }));
+
+  const bestKd=Math.max(0,...rows.map(r=>r.kd));
+  const bestHill=Math.max(0,...rows.map(r=>r.avg_hill_time));
+  const bestOverloads=Math.max(0,...rows.map(r=>r.avg_overloads));
+
+  return rows.map(r=>{
+    const kd_normalized=bestKd ? (r.kd/bestKd)*100 : 0;
+    const hill_normalized=bestHill ? (r.avg_hill_time/bestHill)*100 : 0;
+    const overloads_normalized=bestOverloads ? (r.avg_overloads/bestOverloads)*100 : 0;
+    const performance_score=
+      (kd_normalized*0.50)+
+      (hill_normalized*0.35)+
+      (overloads_normalized*0.15);
+
+    return {
+      ...r,
+      kd_normalized,
+      hill_normalized,
+      overloads_normalized,
+      performance_score
+    };
+  }).sort((a,b)=>
+    b.performance_score-a.performance_score ||
     b.kd-a.kd ||
     b.avg_hill_time-a.avg_hill_time ||
     b.avg_overloads-a.avg_overloads ||
