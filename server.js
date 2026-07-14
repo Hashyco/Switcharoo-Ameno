@@ -34,6 +34,14 @@ function verifyPin(pin, stored) {
 }
 function id(prefix="id") { return `${prefix}_${crypto.randomUUID()}`; }
 
+function ensureColumn(table, column, definition) {
+  const columns = db.prepare(`PRAGMA table_info(${table})`).all().map(row => row.name);
+  if (!columns.includes(column)) {
+    db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
+    console.log(`Migración aplicada: ${table}.${column}`);
+  }
+}
+
 function initDb() {
   db.exec(`
     CREATE TABLE IF NOT EXISTS teams (
@@ -113,10 +121,14 @@ function initDb() {
       player_id TEXT NOT NULL,
       kills INTEGER NOT NULL DEFAULT 0,
       deaths INTEGER NOT NULL DEFAULT 0,
+      assists INTEGER NOT NULL DEFAULT 0,
       hill_time INTEGER NOT NULL DEFAULT 0,
+      objective_kills INTEGER NOT NULL DEFAULT 0,
       plants INTEGER NOT NULL DEFAULT 0,
       defuses INTEGER NOT NULL DEFAULT 0,
       overloads INTEGER NOT NULL DEFAULT 0,
+      kill_overloads INTEGER NOT NULL DEFAULT 0,
+      bomb_carrier_kills INTEGER NOT NULL DEFAULT 0,
       UNIQUE(match_map_id,player_id),
       FOREIGN KEY(match_map_id) REFERENCES match_maps(id) ON DELETE CASCADE,
       FOREIGN KEY(player_id) REFERENCES players(id) ON DELETE CASCADE
@@ -128,6 +140,13 @@ function initDb() {
       FOREIGN KEY(player_id) REFERENCES players(id) ON DELETE SET NULL
     );
   `);
+
+  // Migración segura para instalaciones que ya tienen resultados guardados.
+  // ALTER TABLE conserva todas las filas existentes y añade los campos con valor 0.
+  ensureColumn("player_stats", "assists", "INTEGER NOT NULL DEFAULT 0");
+  ensureColumn("player_stats", "objective_kills", "INTEGER NOT NULL DEFAULT 0");
+  ensureColumn("player_stats", "kill_overloads", "INTEGER NOT NULL DEFAULT 0");
+  ensureColumn("player_stats", "bomb_carrier_kills", "INTEGER NOT NULL DEFAULT 0");
 
   const count = db.prepare("SELECT COUNT(*) n FROM teams").get().n;
   if (count === 0) {
@@ -235,7 +254,9 @@ const LEAGUE_MAPS_BY_ROUND = {
 function fullMatch(idValue){
   const match=db.prepare("SELECT * FROM matches WHERE id=?").get(idValue);
   if(!match) return null;
-  match.maps=db.prepare("SELECT * FROM match_maps WHERE match_id=? ORDER BY map_index").all(idValue);
+  const statStmt=db.prepare("SELECT * FROM player_stats WHERE match_map_id=?");
+  match.maps=db.prepare("SELECT * FROM match_maps WHERE match_id=? ORDER BY map_index").all(idValue)
+    .map(map=>({...map,stats:statStmt.all(map.id)}));
   match.pickban=db.prepare("SELECT * FROM pickban_actions WHERE match_id=? ORDER BY action_index").all(idValue);
   return match;
 }
@@ -256,65 +277,70 @@ function standings(){
   return teams.sort((a,b)=>b.wins-a.wins||b.diff-a.diff||b.maps_won-a.maps_won||a.name.localeCompare(b.name))
     .map((t,i)=>({...t,position:i+1}));
 }
-function playerStats(){
-  const rows = db.prepare(`
+const IMPACT_POINTS = Object.freeze({
+  kills:100,
+  assists:100,
+  objectiveKills:125,
+  hillBlock:15,
+  overloads:300,
+  killOverloads:125,
+  plants:100,
+  defuses:100,
+  bombCarrierKills:125
+});
+
+function addImpactScore(row){
+  const hillBlocks=Math.floor(Number(row.hill_time||0)/5);
+  const impact_score=
+    Number(row.kills||0)*IMPACT_POINTS.kills +
+    Number(row.assists||0)*IMPACT_POINTS.assists +
+    Number(row.objective_kills||0)*IMPACT_POINTS.objectiveKills +
+    hillBlocks*IMPACT_POINTS.hillBlock +
+    Number(row.overloads||0)*IMPACT_POINTS.overloads +
+    Number(row.kill_overloads||0)*IMPACT_POINTS.killOverloads +
+    Number(row.plants||0)*IMPACT_POINTS.plants +
+    Number(row.defuses||0)*IMPACT_POINTS.defuses +
+    Number(row.bomb_carrier_kills||0)*IMPACT_POINTS.bombCarrierKills;
+  return {...row,hill_blocks:hillBlocks,impact_score,kd:row.deaths?row.kills/row.deaths:row.kills};
+}
+
+function playerRanking(filters={}){
+  const conditions=["m.approved=1"];
+  const params=[];
+  if(filters.phase){conditions.push("m.phase=?");params.push(filters.phase)}
+  if(filters.roundNo){conditions.push("m.round_no=?");params.push(filters.roundNo)}
+  if(filters.matchId){conditions.push("m.id=?");params.push(filters.matchId)}
+  if(filters.teamId){conditions.push("p.team_id=?");params.push(filters.teamId)}
+  const eligible=conditions.join(" AND ");
+
+  const rows=db.prepare(`
     SELECT p.id,p.name,p.team_id,t.name team_name,t.logo,t.color,
-      COUNT(DISTINCT CASE
-        WHEN m.approved=1 AND ps.match_map_id IS NOT NULL
-        THEN ps.match_map_id END) maps,
-      COUNT(DISTINCT CASE
-        WHEN m.approved=1 AND mm.mode='Hardpoint'
-        THEN ps.match_map_id END) hardpoint_maps,
-      COUNT(DISTINCT CASE
-        WHEN m.approved=1 AND mm.mode='Overload'
-        THEN ps.match_map_id END) overload_maps,
-      COALESCE(SUM(CASE WHEN m.approved=1 THEN ps.kills ELSE 0 END),0) kills,
-      COALESCE(SUM(CASE WHEN m.approved=1 THEN ps.deaths ELSE 0 END),0) deaths,
-      COALESCE(SUM(CASE WHEN m.approved=1 THEN ps.hill_time ELSE 0 END),0) hill_time,
-      COALESCE(SUM(CASE WHEN m.approved=1 THEN ps.plants ELSE 0 END),0) plants,
-      COALESCE(SUM(CASE WHEN m.approved=1 THEN ps.defuses ELSE 0 END),0) defuses,
-      COALESCE(SUM(CASE WHEN m.approved=1 THEN ps.overloads ELSE 0 END),0) overloads
+      COUNT(DISTINCT CASE WHEN ${eligible} THEN ps.match_map_id END) maps,
+      COALESCE(SUM(CASE WHEN ${eligible} THEN ps.kills ELSE 0 END),0) kills,
+      COALESCE(SUM(CASE WHEN ${eligible} THEN ps.deaths ELSE 0 END),0) deaths,
+      COALESCE(SUM(CASE WHEN ${eligible} THEN ps.assists ELSE 0 END),0) assists,
+      COALESCE(SUM(CASE WHEN ${eligible} THEN ps.hill_time ELSE 0 END),0) hill_time,
+      COALESCE(SUM(CASE WHEN ${eligible} THEN ps.objective_kills ELSE 0 END),0) objective_kills,
+      COALESCE(SUM(CASE WHEN ${eligible} THEN ps.plants ELSE 0 END),0) plants,
+      COALESCE(SUM(CASE WHEN ${eligible} THEN ps.defuses ELSE 0 END),0) defuses,
+      COALESCE(SUM(CASE WHEN ${eligible} THEN ps.overloads ELSE 0 END),0) overloads,
+      COALESCE(SUM(CASE WHEN ${eligible} THEN ps.kill_overloads ELSE 0 END),0) kill_overloads,
+      COALESCE(SUM(CASE WHEN ${eligible} THEN ps.bomb_carrier_kills ELSE 0 END),0) bomb_carrier_kills
     FROM players p
     JOIN teams t ON t.id=p.team_id
     LEFT JOIN player_stats ps ON ps.player_id=p.id
     LEFT JOIN match_maps mm ON mm.id=ps.match_map_id
     LEFT JOIN matches m ON m.id=mm.match_id
     GROUP BY p.id
-  `).all().map(r=>({
-    ...r,
-    kd:r.deaths ? r.kills/r.deaths : r.kills,
-    avg_hill_time:r.hardpoint_maps ? r.hill_time/r.hardpoint_maps : 0,
-    avg_overloads:r.overload_maps ? r.overloads/r.overload_maps : 0
-  }));
+  `).all(...params,...params,...params,...params,...params,...params,...params,...params,...params,...params,...params);
 
-  const bestKd=Math.max(0,...rows.map(r=>r.kd));
-  const bestHill=Math.max(0,...rows.map(r=>r.avg_hill_time));
-  const bestOverloads=Math.max(0,...rows.map(r=>r.avg_overloads));
-
-  return rows.map(r=>{
-    const kd_normalized=bestKd ? (r.kd/bestKd)*100 : 0;
-    const hill_normalized=bestHill ? (r.avg_hill_time/bestHill)*100 : 0;
-    const overloads_normalized=bestOverloads ? (r.avg_overloads/bestOverloads)*100 : 0;
-    const performance_score=
-      (kd_normalized*0.50)+
-      (hill_normalized*0.35)+
-      (overloads_normalized*0.15);
-
-    return {
-      ...r,
-      kd_normalized,
-      hill_normalized,
-      overloads_normalized,
-      performance_score
-    };
-  }).sort((a,b)=>
-    b.performance_score-a.performance_score ||
-    b.kd-a.kd ||
-    b.avg_hill_time-a.avg_hill_time ||
-    b.avg_overloads-a.avg_overloads ||
-    b.kills-a.kills
-  );
+  return rows.map(addImpactScore).filter(r=>!filters.onlyActive||r.maps>0).sort((a,b)=>
+    b.impact_score-a.impact_score || b.kills-a.kills || b.assists-a.assists || a.deaths-b.deaths
+  ).map((r,index)=>({...r,position:index+1}));
 }
+
+function playerStats(){ return playerRanking(); }
+
 function teamStats(){
   const rows = db.prepare(`
     SELECT t.id,t.name,t.logo,t.color,
@@ -326,36 +352,53 @@ function teamStats(){
       COUNT(DISTINCT CASE WHEN m.approved=1 AND mm.played=1 AND mm.winner_id IS NOT NULL AND mm.winner_id<>t.id THEN mm.id END) maps_lost,
       COALESCE(SUM(CASE WHEN m.approved=1 THEN ps.kills ELSE 0 END),0) kills,
       COALESCE(SUM(CASE WHEN m.approved=1 THEN ps.deaths ELSE 0 END),0) deaths,
+      COALESCE(SUM(CASE WHEN m.approved=1 THEN ps.assists ELSE 0 END),0) assists,
       COALESCE(SUM(CASE WHEN m.approved=1 THEN ps.hill_time ELSE 0 END),0) hill_time,
+      COALESCE(SUM(CASE WHEN m.approved=1 THEN ps.objective_kills ELSE 0 END),0) objective_kills,
       COALESCE(SUM(CASE WHEN m.approved=1 THEN ps.plants ELSE 0 END),0) plants,
       COALESCE(SUM(CASE WHEN m.approved=1 THEN ps.defuses ELSE 0 END),0) defuses,
-      COALESCE(SUM(CASE WHEN m.approved=1 THEN ps.overloads ELSE 0 END),0) overloads
+      COALESCE(SUM(CASE WHEN m.approved=1 THEN ps.overloads ELSE 0 END),0) overloads,
+      COALESCE(SUM(CASE WHEN m.approved=1 THEN ps.kill_overloads ELSE 0 END),0) kill_overloads,
+      COALESCE(SUM(CASE WHEN m.approved=1 THEN ps.bomb_carrier_kills ELSE 0 END),0) bomb_carrier_kills
     FROM teams t
     LEFT JOIN matches m ON (m.team_a=t.id OR m.team_b=t.id)
     LEFT JOIN match_maps mm ON mm.match_id=m.id
     LEFT JOIN player_stats ps ON ps.match_map_id=mm.id
       AND ps.player_id IN (SELECT id FROM players WHERE team_id=t.id)
     GROUP BY t.id
-    ORDER BY matches_won DESC, maps_won DESC, kills DESC
-  `).all();
-  return rows.map((r,i)=>({
-    ...r,
-    position:i+1,
-    map_diff:r.maps_won-r.maps_lost,
-    kd:r.deaths?r.kills/r.deaths:r.kills
-  }));
+  `).all().map(addImpactScore).sort((a,b)=>
+    b.matches_won-a.matches_won || b.impact_score-a.impact_score || b.maps_won-a.maps_won
+  );
+  return rows.map((r,i)=>({...r,position:i+1,map_diff:r.maps_won-r.maps_lost}));
 }
-function awards(){
-  const scopes=["round-1","round-2","round-3","tournament"];
-  const rows=db.prepare(`
-    SELECT a.scope_key,a.player_id,p.name player_name,p.team_id,t.name team_name,t.logo,t.color
-    FROM awards a
-    LEFT JOIN players p ON p.id=a.player_id
-    LEFT JOIN teams t ON t.id=p.team_id
-  `).all();
-  const by=Object.fromEntries(rows.map(r=>[r.scope_key,r]));
-  return scopes.map(scope=>by[scope]||{scope_key:scope,player_id:null,player_name:null,team_id:null,team_name:null,logo:null,color:null});
+
+function awardFromRanking(scope,label,ranking){
+  const winner=ranking.find(row=>row.maps>0)||null;
+  return winner?{scope_key:scope,label,...winner}: {scope_key:scope,label,player_id:null};
 }
+
+function automaticAwards(){
+  const rounds=[1,2,3].map(round=>awardFromRanking(
+    `round-${round}`,
+    `Mejor jugador · Jornada ${round}`,
+    playerRanking({phase:"league",roundNo:round,onlyActive:true})
+  ));
+  const tournament=awardFromRanking("tournament","Mejor jugador del torneo",playerRanking({onlyActive:true}));
+  const grandFinal=awardFromRanking("grand-final","MVP de la Grand Final",playerRanking({matchId:"GF",onlyActive:true}));
+  const teams=db.prepare("SELECT id,name,logo,color FROM teams ORDER BY name").all();
+  const teamLeaders=teams.map(team=>({team,...awardFromRanking(`team-${team.id}`,`Mejor jugador de ${team.name}`,playerRanking({teamId:team.id,onlyActive:true}))}));
+  return {rounds,tournament,grandFinal,teamLeaders};
+}
+
+function rankings(){
+  return {
+    overall:playerRanking(),
+    league:playerRanking({phase:"league",onlyActive:true}),
+    bracket:playerRanking({phase:"bracket",onlyActive:true}),
+    grandFinal:playerRanking({matchId:"GF",onlyActive:true})
+  };
+}
+
 function state(){
   return {
     teams:db.prepare("SELECT * FROM teams").all().map(t=>({...t,roster:db.prepare("SELECT * FROM players WHERE team_id=? ORDER BY is_captain DESC,id").all(t.id)})),
@@ -364,7 +407,9 @@ function state(){
     standings:standings(),
     playerStats:playerStats(),
     teamStats:teamStats(),
-    awards:awards()
+    awards:automaticAwards(),
+    rankings:rankings(),
+    impactPoints:IMPACT_POINTS
   };
 }
 
@@ -476,6 +521,11 @@ app.post("/api/results/:matchId",auth(),upload.single("evidence"),(req,res)=>{
   const m=fullMatch(req.params.matchId);
   if(!m||!m.team_a||!m.team_b) return res.status(400).json({error:"Partido no disponible."});
   if(req.user.role!=="admin"&&![m.team_a,m.team_b].includes(req.user.teamId)) return res.status(403).json({error:"Tu equipo no participa."});
+
+  // Solo el administrador puede modificar resultados ya aprobados.
+  if(m.approved===1 && req.user.role!=="admin"){
+    return res.status(403).json({error:"Este resultado ya fue aprobado. Solo el administrador puede modificarlo."});
+  }
   let payload;
   try{payload=JSON.parse(req.body.payload||"{}")}catch{return res.status(400).json({error:"Datos inválidos."})}
   const maps=payload.maps||[];
@@ -497,22 +547,41 @@ app.post("/api/results/:matchId",auth(),upload.single("evidence"),(req,res)=>{
   // El administrador sigue siendo quien aprueba o rechaza el reporte.
   db.exec("BEGIN");
   try{
+    // Al editar, limpia datos previos del partido para recalcular estadísticas sin duplicarlas.
+    for(const mm of m.maps){
+      db.prepare("DELETE FROM player_stats WHERE match_map_id=?").run(mm.id);
+      db.prepare("UPDATE match_maps SET score_a=NULL,score_b=NULL,winner_id=NULL,played=0 WHERE id=?").run(mm.id);
+    }
+
     maps.forEach((r,i)=>{
       if(r.scoreA===""||r.scoreB===""||r.scoreA==null||r.scoreB==null)return;
       const mm=m.maps[i],sa=Number(r.scoreA),sb=Number(r.scoreB),mw=sa>sb?m.team_a:m.team_b;
       db.prepare("UPDATE match_maps SET score_a=?,score_b=?,winner_id=?,played=1 WHERE id=?").run(sa,sb,mw,mm.id);
       for(const s of (r.stats||[])){
-        db.prepare(`INSERT INTO player_stats(id,match_map_id,player_id,kills,deaths,hill_time,plants,defuses,overloads)
-          VALUES(?,?,?,?,?,?,?,?,?)
+        db.prepare(`INSERT INTO player_stats(
+          id,match_map_id,player_id,kills,deaths,assists,hill_time,objective_kills,
+          plants,defuses,overloads,kill_overloads,bomb_carrier_kills
+        ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)
           ON CONFLICT(match_map_id,player_id) DO UPDATE SET
-          kills=excluded.kills,deaths=excluded.deaths,hill_time=excluded.hill_time,
-          plants=excluded.plants,defuses=excluded.defuses,overloads=excluded.overloads`)
-          .run(id("stat"),mm.id,s.playerId,Number(s.kills)||0,Number(s.deaths)||0,Number(s.hillTime)||0,Number(s.plants)||0,Number(s.defuses)||0,Number(s.overloads)||0);
+          kills=excluded.kills,deaths=excluded.deaths,assists=excluded.assists,
+          hill_time=excluded.hill_time,objective_kills=excluded.objective_kills,
+          plants=excluded.plants,defuses=excluded.defuses,overloads=excluded.overloads,
+          kill_overloads=excluded.kill_overloads,bomb_carrier_kills=excluded.bomb_carrier_kills`)
+          .run(
+            id("stat"),mm.id,s.playerId,
+            Number(s.kills)||0,Number(s.deaths)||0,Number(s.assists)||0,
+            Number(s.hillTime)||0,Number(s.objectiveKills)||0,
+            Number(s.plants)||0,Number(s.defuses)||0,Number(s.overloads)||0,
+            Number(s.killOverloads)||0,Number(s.bombCarrierKills)||0
+          );
       }
     });
-    const ev=req.file?`/uploads/${req.file.filename}`:null;
-    db.prepare(`UPDATE matches SET winner_id=?,score_a=?,score_b=?,evidence_path=?,notes=?,status='pending',approved=0,updated_at=? WHERE id=?`)
-      .run(winner,wa,wb,ev,String(payload.notes||"").slice(0,1000),now(),m.id);
+
+    const ev=req.file?`/uploads/${req.file.filename}`:m.evidence_path;
+    const statusValue=req.user.role==="admin" ? "completed" : "pending";
+    const approvedValue=req.user.role==="admin" ? 1 : 0;
+    db.prepare(`UPDATE matches SET winner_id=?,score_a=?,score_b=?,evidence_path=?,notes=?,status=?,approved=?,updated_at=? WHERE id=?`)
+      .run(winner,wa,wb,ev,String(payload.notes||"").slice(0,1000),statusValue,approvedValue,now(),m.id);
     db.exec("COMMIT");res.json(state());
   }catch(e){db.exec("ROLLBACK");res.status(500).json({error:e.message});}
 });

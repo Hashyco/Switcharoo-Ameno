@@ -144,29 +144,24 @@ CORRECCIÓN 2.5.5
 - No es necesario reiniciar el torneo ni borrar la base de datos.
 
 
-ACTUALIZACIÓN 2.5.5-stats.1
-- Construida directamente sobre la versión 2.5.5.
-- Ranking de jugadores ordenado por:
-  1. Mejor K/D.
-  2. Promedio de Hill Time por mapa de Hardpoint.
-  3. Promedio de Overloads por mapa de Overload.
-- Solo se contabilizan resultados aprobados.
-- La Grand Final usa el mismo criterio para ordenar jugadores y referentes.
-- No requiere reiniciar el torneo ni borrar la base de datos.
+CORRECCIÓN 2.5.6
+- El administrador ahora puede editar resultados ya aprobados de liguilla y brackets.
+- Se agregó el botón "Editar resultado" para el admin.
+- Al editar, se limpian las estadísticas anteriores del partido y se recalculan con los nuevos datos.
+- La corrección del admin se guarda como resultado aprobado automáticamente.
+- No es necesario reiniciar torneo ni borrar la base de datos.
 
 
-CORRECCIÓN 2.5.5-stats.2
-- Se corrigieron 95 enlaces internos dentro de package-lock.json.
-- Todos los paquetes ahora se descargan desde https://registry.npmjs.org/
-- Se agregó .npmrc para fijar el registro público de npm.
-- Esta corrección resuelve el npm install que quedaba cargando en Railway.
-
-
-ACTUALIZACIÓN 2.5.5-score.1
-- No modifica ni elimina datos existentes.
-- Ranking ponderado:
-  50% K/D
-  35% Hill Time promedio por mapa de Hardpoint
-  15% Overloads promedio por mapa de Overload
-- Cada categoría se normaliza de 0 a 100 respecto al mejor valor.
-- La tabla se ordena por el puntaje final.
+SWITCHAROO AMENO PRO v3.0 — IMPACT SCORE
+- Migración automática y no destructiva de la base de datos existente.
+- Campos nuevos: asistencias, objective kills, kill overloads y bomb carrier kills.
+- Hardpoint: bajas, muertes, asistencias, hill time y objective kills.
+- Overload: bajas, muertes, asistencias, overloads y kill overloads.
+- Search & Destroy: bajas, muertes, asistencias, bomb carrier kills, plants y defuses.
+- Puntuación automática:
+  Bajas +100; asistencias +100; objective kills +125; cada 5 segundos en Hill +15;
+  overloads +300; kill overloads +125; plants +100; defuses +100; bomb carrier kills +125.
+- Ranking general ordenado de mayor a menor puntuación.
+- MVP automático por jornada, torneo, equipo y Grand Final.
+- Rankings por liguilla, brackets y Grand Final.
+- Los datos anteriores se conservan; los campos nuevos comienzan en 0 para registros históricos.

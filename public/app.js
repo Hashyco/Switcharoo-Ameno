@@ -10,157 +10,85 @@ async function load(){try{S.state=await api("/api/state");shell();render()}catch
 function cardTeam(t){return `<article class="card team-card" style="--team:${t.color}"><div class="team-card-head"><img class="team-logo" src="${t.logo}"><div class="team-element">${esc(t.element)}</div><h3>${esc(t.name)}</h3></div><ul class="roster-list">${t.roster.map((p,i)=>`<li><span class="roster-index">${i+1}</span><strong>${esc(p.name)}</strong>${p.is_captain?'<span class="captain-tag">CAPITÁN</span>':""}</li>`).join("")}</ul></article>`}
 function standings(){return `<div class="table-wrap"><table><thead><tr><th>Pos.</th><th>Equipo</th><th>PJ</th><th>PG</th><th>PP</th><th>MG</th><th>MP</th><th>Dif.</th><th>Pts.</th></tr></thead><tbody>${S.state.standings.map(r=>`<tr><td><span class="rank">${r.position}</span></td><td><div class="mini-team"><img src="${r.logo}"><strong>${esc(r.name)}</strong></div></td><td>${r.played}</td><td>${r.wins}</td><td>${r.losses}</td><td>${r.maps_won}</td><td>${r.maps_lost}</td><td>${r.diff}</td><td>${r.points}</td></tr>`).join("")}</tbody></table></div>`}
 function mapStrip(m){return `<div class="map-strip ${m.best_of===7?"bo7":""}">${m.maps.map((x,i)=>`<div class="map-chip"><small>M${i+1} · ${esc(x.mode)}</small><strong>${esc(x.map_name)}</strong></div>`).join("")}</div>`}
-function canSubmit(m){if(!S.user||m.approved||m.status==="pending"||!m.team_a||!m.team_b||m.maps.length!==m.best_of)return false;return S.user.role==="admin"||[m.team_a,m.team_b].includes(S.user.teamId)}
-function matchCard(m){const a=team(m.team_a),b=team(m.team_b);return `<article class="match-card ${m.approved?"completed":m.status==="pending"?"pending":""}"><div class="match-line"><div class="match-team">${a?`<img src="${a.logo}"><span>${esc(a.name)}</span>`:"Por definir"}</div><div class="vs">${m.approved?`${m.score_a}-${m.score_b}`:"VS"}</div><div class="match-team right">${b?`<span>${esc(b.name)}</span><img src="${b.logo}">`:"Por definir"}</div></div><div class="match-meta"><span class="badge">${esc(m.label)}</span><span>Bo${m.best_of}</span>${m.status==="pickban"?`<button class="btn btn-small btn-secondary" data-pb="${m.id}">Pick & Ban</button>`:""}${canSubmit(m)?`<button class="btn btn-small btn-gold" data-result="${m.id}">Subir resultado</button>`:""}${m.status==="pending"&&S.user?.role==="admin"?`<button class="btn btn-small btn-success" data-approve="${m.id}">Aprobar</button><button class="btn btn-small btn-danger" data-reject="${m.id}">Rechazar</button>`:""}</div>${m.maps.length?mapStrip(m):""}</article>`}
+function canSubmit(m){
+  if(!S.user||m.status==="pending"||!m.team_a||!m.team_b||m.maps.length!==m.best_of)return false;
+  if(S.user.role==="admin")return true;
+  if(m.approved)return false;
+  return [m.team_a,m.team_b].includes(S.user.teamId);
+}
+function matchCard(m){const a=team(m.team_a),b=team(m.team_b);return `<article class="match-card ${m.approved?"completed":m.status==="pending"?"pending":""}"><div class="match-line"><div class="match-team">${a?`<img src="${a.logo}"><span>${esc(a.name)}</span>`:"Por definir"}</div><div class="vs">${m.approved?`${m.score_a}-${m.score_b}`:"VS"}</div><div class="match-team right">${b?`<span>${esc(b.name)}</span><img src="${b.logo}">`:"Por definir"}</div></div><div class="match-meta"><span class="badge">${esc(m.label)}</span><span>Bo${m.best_of}</span>${m.status==="pickban"?`<button class="btn btn-small btn-secondary" data-pb="${m.id}">Pick & Ban</button>`:""}${canSubmit(m)?`<button class="btn btn-small btn-gold" data-result="${m.id}">${m.approved&&S.user?.role==="admin"?"Editar resultado":"Subir resultado"}</button>`:""}${m.status==="pending"&&S.user?.role==="admin"?`<button class="btn btn-small btn-success" data-approve="${m.id}">Aprobar</button><button class="btn btn-small btn-danger" data-reject="${m.id}">Rechazar</button>`:""}</div>${m.maps.length?mapStrip(m):""}</article>`}
 function head(t,s,a=""){return `<div class="page-head"><div><h2>${t}</h2><p>${s}</p></div><div class="page-actions">${a}</div></div>`}
 function home(){return `<section class="hero"><div class="hero-copy"><div class="eyebrow">PLATAFORMA OFICIAL</div><h2>SWITCHAROO<br><span>AMENO</span></h2><p>Liguilla, brackets, pick & ban, resultados y estadísticas en una sola plataforma.</p></div><img class="hero-logo" src="/assets/league.png"></section><h3 class="section-title">Clasificación</h3><section class="card card-body">${standings()}</section><h3 class="section-title">Equipos</h3><section class="grid grid-4">${S.state.teams.map(cardTeam).join("")}</section>`}
 function teamsPage(){return head("Equipos","Rosters oficiales de cuatro jugadores.")+`<section class="grid grid-4">${S.state.teams.map(cardTeam).join("")}</section>`}
 function leaguePage(){const a=S.user?.role==="admin"?`<button id="gen-league" class="btn btn-gold">Generar liguilla</button>`:"";return head("Liguilla","Todos contra todos · 3 jornadas · Bo5",a)+(S.state.league.length?`<section class="card card-body">${standings()}</section><h3 class="section-title">Jornadas</h3><section class="grid grid-3">${[1,2,3].map(r=>`<article class="card card-body"><h3>Jornada ${r}</h3>${S.state.league.filter(m=>m.round_no===r).map(matchCard).join("")}</article>`).join("")}</section>`:`<section class="empty-state"><div><h2>Liguilla pendiente</h2><p class="muted">El administrador debe generarla.</p></div></section>`)}
 function bracketPage(){const a=S.user?.role==="admin"?`<button id="gen-bracket" class="btn btn-gold">Generar brackets</button>`:"";return head("Brackets","Winners, Losers y Grand Final.",a)+(S.state.bracket.length?`<section class="grid grid-2">${S.state.bracket.map(m=>`<article class="card card-body">${matchCard(m)}</article>`).join("")}</section>`:`<section class="empty-state"><div><h2>Bracket pendiente</h2><p class="muted">Debe finalizar la liguilla.</p></div></section>`)}
+function points(value){return Number(value||0).toLocaleString("es-PA")}
 function awardCard(a,label){
-  return `<article class="card award-card">
+  return `<article class="card award-card impact-award">
     <div class="award-kicker">${esc(label)}</div>
-    ${a?.player_id?`<div class="award-player"><img src="${a.logo}"><div><strong>${esc(a.player_name)}</strong><span>${esc(a.team_name)}</span></div></div>`:`<div class="award-empty">Pendiente de seleccionar</div>`}
+    ${a?.id?`<div class="award-player"><img src="${a.logo}"><div><strong>${esc(a.name)}</strong><span>${esc(a.team_name)}</span><b>${points(a.impact_score)} pts</b></div></div>`:`<div class="award-empty">Pendiente de resultados aprobados</div>`}
   </article>`;
 }
-function teamStatsTable(){
+function teamStatsTable(rows=S.state.teamStats){
   return `<div class="table-wrap"><table><thead><tr>
-    <th>Pos.</th><th>Equipo</th><th>PJ</th><th>PG</th><th>PP</th><th>MG</th><th>MP</th><th>Dif.</th>
-    <th>Bajas</th><th>Muertes</th><th>K/D</th><th>Hill Time</th><th>Plantadas</th><th>Desplantadas</th><th>Overloads</th>
-  </tr></thead><tbody>${S.state.teamStats.map(t=>`<tr>
-    <td><span class="rank">${t.position}</span></td>
-    <td><div class="mini-team"><img src="${t.logo}"><strong>${esc(t.name)}</strong></div></td>
-    <td>${t.matches_played}</td><td>${t.matches_won}</td><td>${t.matches_lost}</td>
-    <td>${t.maps_won}</td><td>${t.maps_lost}</td><td>${t.map_diff}</td>
-    <td>${t.kills}</td><td>${t.deaths}</td><td>${Number(t.kd).toFixed(2)}</td>
-    <td>${t.hill_time}s</td><td>${t.plants}</td><td>${t.defuses}</td><td>${t.overloads}</td>
+    <th>Pos.</th><th>Equipo</th><th>Puntaje</th><th>PJ</th><th>PG</th><th>PP</th><th>MG</th><th>MP</th>
+    <th>Bajas</th><th>Asist.</th><th>Obj. Kills</th><th>Hill</th><th>Overloads</th><th>Kill OL</th><th>Plants</th><th>Defuses</th><th>Carrier Kills</th>
+  </tr></thead><tbody>${rows.map(t=>`<tr>
+    <td><span class="rank">${t.position||"—"}</span></td><td><div class="mini-team"><img src="${t.logo}"><strong>${esc(t.name)}</strong></div></td>
+    <td><strong>${points(t.impact_score)}</strong></td><td>${t.matches_played}</td><td>${t.matches_won}</td><td>${t.matches_lost}</td><td>${t.maps_won}</td><td>${t.maps_lost}</td>
+    <td>${t.kills}</td><td>${t.assists}</td><td>${t.objective_kills}</td><td>${t.hill_time}s</td><td>${t.overloads}</td><td>${t.kill_overloads}</td><td>${t.plants}</td><td>${t.defuses}</td><td>${t.bomb_carrier_kills}</td>
   </tr>`).join("")}</tbody></table></div>`;
 }
-
+function playerStatsTable(rows,compact=false){
+  return `<div class="table-wrap"><table><thead><tr><th>Pos.</th><th>Jugador</th><th>Equipo</th><th>Puntaje</th><th>Mapas</th><th>Bajas</th><th>Muertes</th><th>Asist.</th><th>K/D</th><th>Obj. Kills</th><th>Hill</th><th>Overloads</th><th>Kill OL</th><th>Plants</th><th>Defuses</th><th>Carrier Kills</th></tr></thead>
+    <tbody>${rows.map((p,i)=>`<tr><td><span class="rank">${i+1}</span></td><td><strong>${esc(p.name)}</strong></td><td>${esc(p.team_name)}</td><td><strong>${points(p.impact_score)}</strong></td><td>${p.maps}</td><td>${p.kills}</td><td>${p.deaths}</td><td>${p.assists}</td><td>${Number(p.kd).toFixed(2)}</td><td>${p.objective_kills}</td><td>${p.hill_time}s</td><td>${p.overloads}</td><td>${p.kill_overloads}</td><td>${p.plants}</td><td>${p.defuses}</td><td>${p.bomb_carrier_kills}</td></tr>`).join("")}</tbody></table></div>`;
+}
+function phaseTop(title,rows){
+  return `<article class="card card-body phase-top"><h3>${esc(title)}</h3>${rows.length?rows.slice(0,3).map((p,i)=>`<div class="leader-row"><span>${i+1}</span><img src="${p.logo}"><div><strong>${esc(p.name)}</strong><small>${esc(p.team_name)}</small></div><b>${points(p.impact_score)} pts</b></div>`).join(""):'<p class="muted">Pendiente de resultados.</p>'}</article>`;
+}
 function finalistPlayerStats(teamId){
-  return (S.state.playerStats||[])
-    .filter(p=>p.team_id===teamId)
-    .sort((a,b)=>Number(b.performance_score||0)-Number(a.performance_score||0)||Number(b.kd)-Number(a.kd)||b.kills-a.kills);
+  const gf=(S.state.rankings?.grandFinal||[]).filter(p=>p.team_id===teamId);
+  const overall=(S.state.rankings?.overall||[]).filter(p=>p.team_id===teamId);
+  return gf.length?gf:overall;
 }
-function referencePlayers(teamId){
-  return finalistPlayerStats(teamId).slice(0,2);
-}
+function referencePlayers(teamId){return finalistPlayerStats(teamId).slice(0,2)}
 function finalTeamPanel(t,side){
   const ts=(S.state.teamStats||[]).find(x=>x.id===t.id)||{};
   const refs=referencePlayers(t.id);
-  return `<article class="gf-team gf-${side}" style="--gf-color:${t.color}">
-    <div class="gf-team-main">
-      <img class="gf-team-logo" src="${t.logo}">
-      <div><div class="eyebrow">FINALISTA</div><h3>${esc(t.name)}</h3><span>${esc(t.element)}</span></div>
-    </div>
-    <div class="gf-team-stats">
-      <div><strong>${ts.matches_won||0}</strong><span>Series ganadas</span></div>
-      <div><strong>${ts.maps_won||0}</strong><span>Mapas ganados</span></div>
-      <div><strong>${Number(ts.kd||0).toFixed(2)}</strong><span>K/D equipo</span></div>
-      <div><strong>${ts.kills||0}</strong><span>Bajas</span></div>
-    </div>
-    <div class="gf-reference">
-      <h4>Jugadores referentes</h4>
-      ${refs.length?refs.map((p,i)=>`<div class="gf-player">
-        <span class="gf-player-rank">${i+1}</span>
-        <div><strong>${esc(p.name)}</strong><small>Puntaje ${Number(p.performance_score||0).toFixed(1)} · K/D ${Number(p.kd).toFixed(2)}</small></div>
-      </div>`).join(""):'<p class="muted">Estadísticas pendientes.</p>'}
-    </div>
-  </article>`;
+  return `<article class="gf-team gf-${side}" style="--gf-color:${t.color}"><div class="gf-team-main"><img class="gf-team-logo" src="${t.logo}"><div><div class="eyebrow">FINALISTA</div><h3>${esc(t.name)}</h3><span>${esc(t.element)}</span></div></div>
+    <div class="gf-team-stats"><div><strong>${points(ts.impact_score)}</strong><span>Puntaje</span></div><div><strong>${ts.maps_won||0}</strong><span>Mapas ganados</span></div><div><strong>${ts.kills||0}</strong><span>Bajas</span></div><div><strong>${ts.overloads||0}</strong><span>Overloads</span></div></div>
+    <div class="gf-reference"><h4>Jugadores referentes</h4>${refs.length?refs.map((p,i)=>`<div class="gf-player"><span class="gf-player-rank">${i+1}</span><div><strong>${esc(p.name)}</strong><small>${points(p.impact_score)} pts · K/D ${Number(p.kd).toFixed(2)}</small></div></div>`).join(""):'<p class="muted">Estadísticas pendientes.</p>'}</div></article>`;
 }
 function grandFinalPlayerTable(finalists){
   const ids=new Set(finalists.map(t=>t.id));
-  const rows=(S.state.playerStats||[]).filter(p=>ids.has(p.team_id)).sort((a,b)=>Number(b.performance_score||0)-Number(a.performance_score||0)||Number(b.kd)-Number(a.kd)||b.kills-a.kills);
-  return `<div class="table-wrap"><table><thead><tr><th>Pos.</th><th>Jugador</th><th>Equipo</th><th>Mapas</th><th>K/D Prom.</th><th>Hill Prom.</th><th>Overloads Prom.</th><th>Bajas</th><th>Muertes</th><th>Hill Total</th><th>Overloads Total</th></tr></thead>
-  <tbody>${rows.map((p,i)=>`<tr><td><span class="rank">${i+1}</span></td><td><strong>${esc(p.name)}</strong></td><td>${esc(p.team_name)}</td><td>${p.maps}</td><td><strong>${Number(p.kd).toFixed(2)}</strong></td><td>${Number(p.avg_hill_time||0).toFixed(1)}s</td><td>${Number(p.avg_overloads||0).toFixed(2)}</td><td>${p.kills}</td><td>${p.deaths}</td><td>${p.hill_time}s</td><td>${p.overloads}</td></tr>`).join("")}</tbody></table></div>`;
+  return playerStatsTable((S.state.rankings?.grandFinal||[]).filter(p=>ids.has(p.team_id)));
 }
 function grandFinalPage(){
   const gf=(S.state.bracket||[]).find(m=>m.id==="GF");
-  if(!gf||!gf.team_a||!gf.team_b){
-    return head("Grand Final","La batalla definitiva del Switcharoo Ameno.")+
-      `<section class="gf-empty"><img src="/assets/league.png"><div><div class="eyebrow">PRÓXIMAMENTE</div><h2>Finalistas por definir</h2><p>La Grand Final se habilitará cuando termine el Losers Final.</p><span>Formato oficial: Pick & Ban · Mejor de 7</span></div></section>`;
-  }
-  const a=team(gf.team_a),b=team(gf.team_b);
-  const actions=[];
-  if(gf.status==="pickban"||gf.pickban?.some(x=>!x.map_name)) actions.push(`<button class="btn btn-gold" data-pb="${gf.id}">Abrir Pick & Ban Bo7</button>`);
-  if(canSubmit(gf)) actions.push(`<button class="btn btn-secondary" data-result="${gf.id}">Subir resultado</button>`);
-  if(gf.status==="pending"&&S.user?.role==="admin") actions.push(`<button class="btn btn-success" data-approve="${gf.id}">Aprobar resultado</button><button class="btn btn-danger" data-reject="${gf.id}">Rechazar</button>`);
-  return `<section class="gf-hero">
-    <div class="gf-topline"><span>SWITCHAROO AMENO</span><strong>GRAND FINAL · BO7</strong><span>PICK & BAN</span></div>
-    <div class="gf-versus">
-      ${finalTeamPanel(a,"left")}
-      <div class="gf-center">
-        <img src="/assets/league.png">
-        <div class="gf-vs">VS</div>
-        ${gf.approved?`<div class="gf-final-score">${gf.score_a} — ${gf.score_b}</div>`:'<div class="gf-status">La batalla final</div>'}
-      </div>
-      ${finalTeamPanel(b,"right")}
-    </div>
-    <div class="gf-actions">${actions.join("")}</div>
-    ${gf.maps?.length?`<div class="gf-map-section"><h3>Mapas de la Grand Final</h3>${mapStrip(gf)}</div>`:""}
-  </section>
-  <h3 class="section-title">Comparativa de los finalistas</h3>
-  <section class="card card-body">${teamStatsTableFiltered([a.id,b.id])}</section>
-  <h3 class="section-title">Estadísticas de jugadores finalistas</h3>
-  <section class="card card-body">${grandFinalPlayerTable([a,b])}</section>`;
-}
-function teamStatsTableFiltered(ids){
-  const rows=(S.state.teamStats||[]).filter(t=>ids.includes(t.id));
-  return `<div class="table-wrap"><table><thead><tr><th>Equipo</th><th>PJ</th><th>PG</th><th>PP</th><th>MG</th><th>MP</th><th>Dif.</th><th>Bajas</th><th>Muertes</th><th>K/D</th><th>Hill</th><th>Plantadas</th><th>Desplantadas</th><th>Overloads</th></tr></thead>
-  <tbody>${rows.map(t=>`<tr><td><div class="mini-team"><img src="${t.logo}"><strong>${esc(t.name)}</strong></div></td><td>${t.matches_played}</td><td>${t.matches_won}</td><td>${t.matches_lost}</td><td>${t.maps_won}</td><td>${t.maps_lost}</td><td>${t.map_diff}</td><td>${t.kills}</td><td>${t.deaths}</td><td>${Number(t.kd).toFixed(2)}</td><td>${t.hill_time}s</td><td>${t.plants}</td><td>${t.defuses}</td><td>${t.overloads}</td></tr>`).join("")}</tbody></table></div>`;
+  if(!gf||!gf.team_a||!gf.team_b)return head("Grand Final","La batalla definitiva del Switcharoo Ameno.")+`<section class="gf-empty"><img src="/assets/league.png"><div><div class="eyebrow">PRÓXIMAMENTE</div><h2>Finalistas por definir</h2><p>La Grand Final se habilitará cuando termine el Losers Final.</p><span>Pick & Ban · Mejor de 7</span></div></section>`;
+  const a=team(gf.team_a),b=team(gf.team_b),actions=[];
+  if(gf.status==="pickban"||gf.pickban?.some(x=>!x.map_name))actions.push(`<button class="btn btn-gold" data-pb="${gf.id}">Abrir Pick & Ban Bo7</button>`);
+  if(canSubmit(gf))actions.push(`<button class="btn btn-secondary" data-result="${gf.id}">${gf.approved&&S.user?.role==="admin"?"Editar resultado":"Subir resultado"}</button>`);
+  if(gf.status==="pending"&&S.user?.role==="admin")actions.push(`<button class="btn btn-success" data-approve="${gf.id}">Aprobar resultado</button><button class="btn btn-danger" data-reject="${gf.id}">Rechazar</button>`);
+  const mvp=S.state.awards?.grandFinal;
+  return `<section class="gf-hero"><div class="gf-topline"><span>SWITCHAROO AMENO</span><strong>GRAND FINAL · BO7</strong><span>PICK & BAN</span></div><div class="gf-versus">${finalTeamPanel(a,"left")}<div class="gf-center"><img src="/assets/league.png"><div class="gf-vs">VS</div>${gf.approved?`<div class="gf-final-score">${gf.score_a} — ${gf.score_b}</div>`:'<div class="gf-status">La batalla final</div>'}${mvp?.id?`<div class="gf-mvp"><small>MVP ACTUAL</small><strong>${esc(mvp.name)}</strong><span>${points(mvp.impact_score)} pts</span></div>`:""}</div>${finalTeamPanel(b,"right")}</div><div class="gf-actions">${actions.join("")}</div>${gf.maps?.length?`<div class="gf-map-section"><h3>Mapas de la Grand Final</h3>${mapStrip(gf)}</div>`:""}</section><h3 class="section-title">Comparativa de los finalistas</h3><section class="card card-body">${teamStatsTable(S.state.teamStats.filter(t=>[a.id,b.id].includes(t.id)))}</section><h3 class="section-title">Estadísticas exclusivas de la Grand Final</h3><section class="card card-body">${grandFinalPlayerTable([a,b])}</section>`;
 }
 function statsPage(){
-  const by=Object.fromEntries((S.state.awards||[]).map(a=>[a.scope_key,a]));
-  return head("Estadísticas","Rendimiento acumulado de jugadores y equipos durante todo el torneo.")+
-  `<h3 class="section-title">Reconocimientos</h3>
-  <section class="grid grid-4 awards-grid">
-    ${awardCard(by["round-1"],"Mejor jugador · Jornada 1")}
-    ${awardCard(by["round-2"],"Mejor jugador · Jornada 2")}
-    ${awardCard(by["round-3"],"Mejor jugador · Jornada 3")}
-    ${awardCard(by["tournament"],"Mejor jugador del torneo")}
-  </section>
-  <h3 class="section-title">Estadísticas por equipos</h3>
-  <section class="card card-body">${teamStatsTable()}</section>
-  <h3 class="section-title">Ranking general de rendimiento</h3>
-  <section class="card card-body">
-    <p class="muted">Puntaje normalizado: 50% K/D, 35% promedio de Hill Time y 15% promedio de Overloads. Cada categoría se compara con el mejor valor registrado.</p>
-    <div class="table-wrap"><table><thead><tr><th>Pos.</th><th>Jugador</th><th>Equipo</th><th>Puntaje</th><th>K/D</th><th>K/D Norm.</th><th>Hill Prom.</th><th>Hill Norm.</th><th>Overloads Prom.</th><th>Overloads Norm.</th><th>Mapas</th><th>Bajas</th><th>Muertes</th></tr></thead><tbody>${S.state.playerStats.map((p,i)=>`<tr><td><span class="rank">${i+1}</span></td><td><strong>${esc(p.name)}</strong></td><td>${esc(p.team_name)}</td><td><strong>${Number(p.performance_score||0).toFixed(1)}</strong></td><td>${Number(p.kd).toFixed(2)}</td><td>${Number(p.kd_normalized||0).toFixed(1)}</td><td>${Number(p.avg_hill_time||0).toFixed(1)}s</td><td>${Number(p.hill_normalized||0).toFixed(1)}</td><td>${Number(p.avg_overloads||0).toFixed(2)}</td><td>${Number(p.overloads_normalized||0).toFixed(1)}</td><td>${p.maps}</td><td>${p.kills}</td><td>${p.deaths}</td></tr>`).join("")}</tbody></table></div>
-  </section>`;
+  const awards=S.state.awards||{};
+  return head("Estadísticas","Ranking automático basado en impacto individual y juego al objetivo.")+`<section class="score-formula card card-body"><h3>Sistema de puntuación</h3><div class="formula-grid"><span>Baja <b>+100</b></span><span>Asistencia <b>+100</b></span><span>Objective Kill <b>+125</b></span><span>Cada 5 s en Hill <b>+15</b></span><span>Overload <b>+300</b></span><span>Kill Overload <b>+125</b></span><span>Plant <b>+100</b></span><span>Defuse <b>+100</b></span><span>Bomb Carrier Kill <b>+125</b></span></div></section>
+    <h3 class="section-title">MVP automáticos</h3><section class="grid grid-4 awards-grid">${(awards.rounds||[]).map((a,i)=>awardCard(a,`Mejor jugador · Jornada ${i+1}`)).join("")}${awardCard(awards.tournament,"Mejor jugador del torneo")}${awardCard(awards.grandFinal,"MVP de la Grand Final")}</section>
+    <h3 class="section-title">Mejor jugador de cada equipo</h3><section class="grid grid-4 awards-grid">${(awards.teamLeaders||[]).map(x=>awardCard(x,`Referente · ${x.team.name}`)).join("")}</section>
+    <h3 class="section-title">Top por fase</h3><section class="grid grid-3">${phaseTop("Liguilla",S.state.rankings?.league||[])}${phaseTop("Brackets",S.state.rankings?.bracket||[])}${phaseTop("Grand Final",S.state.rankings?.grandFinal||[])}</section>
+    <h3 class="section-title">Estadísticas por equipos</h3><section class="card card-body">${teamStatsTable()}</section>
+    <h3 class="section-title">Ranking general de jugadores</h3><section class="card card-body">${playerStatsTable(S.state.rankings?.overall||S.state.playerStats||[])}</section>`;
 }
+
 function adminPage(){
   if(S.user?.role!=="admin")return home();
-  const players=S.state.teams.flatMap(t=>t.roster.map(p=>({...p,teamName:t.name})));
-  const awardBy=Object.fromEntries((S.state.awards||[]).map(a=>[a.scope_key,a.player_id]));
-  const awardSelect=(scope,label)=>`<label>${label}<select data-award="${scope}">
-    <option value="">Sin seleccionar</option>
-    ${players.map(p=>`<option value="${p.id}" ${awardBy[scope]===p.id?"selected":""}>${esc(p.name)} · ${esc(p.teamName)}</option>`).join("")}
-  </select></label>`;
-  return head("Administración","Rosters, PIN, reconocimientos y aprobación de resultados.")+
-  `<section class="grid grid-2">
-    <article class="card card-body"><h3>Rosters y PIN</h3><form id="roster-form" class="simple-form">
-      ${S.state.teams.map(t=>`<div class="admin-team-editor"><div class="admin-team-editor-head"><img src="${t.logo}"><strong>${esc(t.name)}</strong></div>${t.roster.map(p=>`<label>${p.is_captain?"Capitán":"Jugador"}<input data-player="${p.id}" data-team="${t.id}" value="${esc(p.name)}"></label>`).join("")}<label>Nuevo PIN<input type="password" data-pin="${t.id}" placeholder="Opcional"></label></div>`).join("")}
-      <label>Nuevo PIN admin<input id="admin-pin" type="password" placeholder="Opcional"></label>
-      <button class="btn btn-gold">Guardar rosters y PIN</button>
-    </form></article>
-    <div class="simple-form">
-      <article class="card card-body"><h3>Mejores jugadores</h3><p class="muted">Selecciona el MVP de cada jornada y del torneo.</p>
-        <form id="awards-form" class="simple-form">
-          ${awardSelect("round-1","Mejor jugador · Jornada 1")}
-          ${awardSelect("round-2","Mejor jugador · Jornada 2")}
-          ${awardSelect("round-3","Mejor jugador · Jornada 3")}
-          ${awardSelect("tournament","Mejor jugador del torneo")}
-          <button class="btn btn-gold">Guardar reconocimientos</button>
-        </form>
-      </article>
-      <article class="card card-body"><h3>Resultados pendientes</h3>${[...S.state.league,...S.state.bracket].filter(m=>m.status==="pending").map(matchCard).join("")||'<p class="muted">No hay resultados pendientes.</p>'}</article>
-      <article class="card card-body danger-zone">
-        <div class="danger-zone-head"><div><div class="eyebrow">ZONA DE PELIGRO</div><h3>Reiniciar torneo</h3></div><span>⚠</span></div>
-        <p>Elimina liguilla, brackets, resultados, estadísticas, Pick & Ban, MVP y evidencias. Conserva equipos, jugadores y PIN.</p>
-        <button id="reset-tournament" class="btn btn-danger">Reiniciar todos los datos</button>
-      </article>
-    </div>
-  </section>`;
+  const tournament=S.state.awards?.tournament;
+  return head("Administración","Rosters, PIN, resultados, reinicio y MVP calculados automáticamente.")+`<section class="grid grid-2"><article class="card card-body"><h3>Rosters y PIN</h3><form id="roster-form" class="simple-form">${S.state.teams.map(t=>`<div class="admin-team-editor"><div class="admin-team-editor-head"><img src="${t.logo}"><strong>${esc(t.name)}</strong></div>${t.roster.map(p=>`<label>${p.is_captain?"Capitán":"Jugador"}<input data-player="${p.id}" data-team="${t.id}" value="${esc(p.name)}"></label>`).join("")}<label>Nuevo PIN<input type="password" data-pin="${t.id}" placeholder="Opcional"></label></div>`).join("")}<label>Nuevo PIN admin<input id="admin-pin" type="password" placeholder="Opcional"></label><button class="btn btn-gold">Guardar rosters y PIN</button></form></article><div class="simple-form"><article class="card card-body"><h3>MVP automático del torneo</h3>${tournament?.id?`<div class="auto-mvp"><img src="${tournament.logo}"><div><strong>${esc(tournament.name)}</strong><span>${esc(tournament.team_name)}</span><b>${points(tournament.impact_score)} puntos</b></div></div>`:'<p class="muted">Se calculará al aprobar resultados con estadísticas.</p>'}<p class="muted">Los MVP de jornada, equipo y Grand Final ya no requieren selección manual.</p></article><article class="card card-body"><h3>Resultados pendientes</h3>${[...S.state.league,...S.state.bracket].filter(m=>m.status==="pending").map(matchCard).join("")||'<p class="muted">No hay resultados pendientes.</p>'}</article><article class="card card-body danger-zone"><div class="danger-zone-head"><div><div class="eyebrow">ZONA DE PELIGRO</div><h3>Reiniciar torneo</h3></div><span>⚠</span></div><p>Elimina liguilla, brackets, resultados, estadísticas, Pick & Ban, MVP y evidencias. Conserva equipos, jugadores y PIN.</p><button id="reset-tournament" class="btn btn-danger">Reiniciar todos los datos</button></article></div></section>`;
 }
+
 function render(){shell();const p={home,teams:teamsPage,league:leaguePage,bracket:bracketPage,grandfinal:grandFinalPage,stats:statsPage,admin:adminPage}[S.page]||home;$("#app").innerHTML=p();bind()}
 function bind(){
   $$("[data-result]").forEach(b=>b.onclick=()=>openResult(b.dataset.result));
@@ -170,26 +98,31 @@ function bind(){
   if($("#gen-league"))$("#gen-league").onclick=async()=>{try{S.state=await api("/api/admin/league",{method:"POST",body:"{}"});toast("Liguilla generada","success");render()}catch(e){toast(e.message,"error")}};
   if($("#gen-bracket"))$("#gen-bracket").onclick=async()=>{try{S.state=await api("/api/admin/bracket",{method:"POST",body:"{}"});toast("Bracket generado","success");render()}catch(e){toast(e.message,"error")}};
   if($("#roster-form"))$("#roster-form").onsubmit=saveRosters;
-  if($("#awards-form"))$("#awards-form").onsubmit=saveAwards;
   if($("#reset-tournament"))$("#reset-tournament").onclick=resetTournament;
 }
 async function review(id,ok){try{S.state=await api(`/api/admin/${ok?"approve":"reject"}/${id}`,{method:"POST",body:"{}"});toast(ok?"Aprobado":"Rechazado","success");render()}catch(e){toast(e.message,"error")}}
 function resultFieldsForMode(mode){
-  if(mode==="Hardpoint") return ["kills","deaths","hillTime"];
-  if(mode==="Search & Destroy") return ["kills","deaths","plants","defuses"];
-  return ["kills","deaths","overloads"];
+  if(mode==="Hardpoint")return ["kills","deaths","assists","hillTime","objectiveKills"];
+  if(mode==="Search & Destroy")return ["kills","deaths","assists","bombCarrierKills","plants","defuses"];
+  return ["kills","deaths","assists","overloads","killOverloads"];
 }
 function resultFieldLabel(field){
-  return {kills:"Bajas",deaths:"Muertes",hillTime:"Hill Time",plants:"Plantadas",defuses:"Desplantadas",overloads:"Overloads"}[field]||field;
+  return {kills:"Bajas",deaths:"Muertes",assists:"Asistencias",hillTime:"Hill Time",objectiveKills:"Objective Kills",overloads:"Overloads",killOverloads:"Kill Overloads",bombCarrierKills:"Bomb Carrier Kills",plants:"Plant",defuses:"Defuse"}[field]||field;
 }
-function emptyMapDraft(m,a,b){
-  return {scoreA:"",scoreB:"",stats:[...a.roster,...b.roster].map(p=>({playerId:p.id,kills:0,deaths:0,hillTime:0,plants:0,defuses:0,overloads:0}))};
+
+function emptyMapDraft(m,a,b,mapIndex=0){
+  const mm=m.maps[mapIndex]||{},stored=mm.stats||[];
+  return {scoreA:mm.score_a??"",scoreB:mm.score_b??"",stats:[...a.roster,...b.roster].map(p=>{
+    const old=stored.find(x=>x.player_id===p.id)||{};
+    return {playerId:p.id,kills:Number(old.kills)||0,deaths:Number(old.deaths)||0,assists:Number(old.assists)||0,hillTime:Number(old.hill_time)||0,objectiveKills:Number(old.objective_kills)||0,plants:Number(old.plants)||0,defuses:Number(old.defuses)||0,overloads:Number(old.overloads)||0,killOverloads:Number(old.kill_overloads)||0,bombCarrierKills:Number(old.bomb_carrier_kills)||0};
+  })};
 }
+
 function openResult(id){
   const m=match(id),a=team(m.team_a),b=team(m.team_b);
   S.resultDraft={
     matchId:id,current:0,
-    maps:m.maps.map(()=>emptyMapDraft(m,a,b)),
+    maps:m.maps.map((_,i)=>emptyMapDraft(m,a,b,i)),
     notes:"",evidence:null
   };
   $("#result-modal").showModal();
@@ -230,7 +163,7 @@ function renderResultWizard(){
   const progress=Math.round(((i+1)/m.best_of)*100);
   $("#result-root").innerHTML=`
     <div class="rw-header">
-      <div><div class="eyebrow">REGISTRO RÁPIDO DE RESULTADOS</div><h2>${esc(m.label)} · Bo${m.best_of}</h2><p>${esc(a.name)} vs ${esc(b.name)}</p></div>
+      <div><div class="eyebrow">${m.approved&&S.user?.role==="admin"?"EDICIÓN DE RESULTADO":"REGISTRO RÁPIDO DE RESULTADOS"}</div><h2>${esc(m.label)} · Bo${m.best_of}</h2><p>${esc(a.name)} vs ${esc(b.name)}</p></div>
       <div class="rw-series-score"><div><img src="${a.logo}"><strong>${ss.a}</strong></div><span>SERIE</span><div><strong>${ss.b}</strong><img src="${b.logo}"></div></div>
     </div>
     <div class="rw-progress"><span style="width:${progress}%"></span></div>
@@ -272,11 +205,11 @@ function renderResultReview(){
     <div class="rw-review">
       <div class="eyebrow">CONFIRMAR RESULTADO</div><h2>${esc(a.name)} ${ss.a} — ${ss.b} ${esc(b.name)}</h2>
       <div class="rw-review-maps">${m.maps.map((mm,i)=>{const x=d.maps[i];return x.scoreA===""?"":`<div><span>M${i+1}</span><strong>${esc(mm.map_name)}</strong><small>${x.scoreA} — ${x.scoreB}</small></div>`}).join("")}</div>
-      <p class="muted">El reporte quedará pendiente hasta que el administrador lo apruebe. Puede enviarlo cualquiera de los dos capitanes del partido.</p><div class="result-grid">
+      <p class="muted">${m.approved&&S.user?.role==="admin"?"Esta corrección se guardará inmediatamente y actualizará las estadísticas acumuladas.":"El reporte quedará pendiente hasta que el administrador lo apruebe. Puede enviarlo cualquiera de los dos capitanes del partido."}</p><div class="result-grid">
         <label>Evidencia opcional<input id="wizard-evidence" type="file" accept="image/*"></label>
         <label>Notas opcionales<textarea id="wizard-notes">${esc(d.notes)}</textarea></label>
       </div>
-      <div class="rw-navigation"><button type="button" id="rw-edit" class="btn btn-secondary">← Editar mapas</button><button type="button" id="rw-submit" class="btn btn-gold">Enviar resultado para aprobación</button></div>
+      <div class="rw-navigation"><button type="button" id="rw-edit" class="btn btn-secondary">← Editar mapas</button><button type="button" id="rw-submit" class="btn btn-gold">${m.approved&&S.user?.role==="admin"?"Guardar corrección":"Enviar resultado para aprobación"}</button></div>
     </div>`;
   $("#rw-edit").onclick=()=>renderResultWizard();
   $("#rw-submit").onclick=submitResultWizard;
