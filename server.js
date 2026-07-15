@@ -289,19 +289,85 @@ const IMPACT_POINTS = Object.freeze({
   bombCarrierKills:125
 });
 
+const PERFORMANCE_WEIGHTS = Object.freeze({
+  kd:0.35,
+  objectiveScore:0.25,
+  killsPerMap:0.30,
+  assistsPerMap:0.10
+});
+
 function addImpactScore(row){
+  const maps=Number(row.maps||row.maps_played||0);
+  const kills=Number(row.kills||0);
+  const deaths=Number(row.deaths||0);
+  const assists=Number(row.assists||0);
   const hillBlocks=Math.floor(Number(row.hill_time||0)/5);
-  const impact_score=
-    Number(row.kills||0)*IMPACT_POINTS.kills +
-    Number(row.assists||0)*IMPACT_POINTS.assists +
+
+  // Objective Score solicitado para el rating:
+  // Overload, Kill Overload, Plant, Defuse, Objective Kill y Hill Time.
+  const objective_score=
     Number(row.objective_kills||0)*IMPACT_POINTS.objectiveKills +
     hillBlocks*IMPACT_POINTS.hillBlock +
     Number(row.overloads||0)*IMPACT_POINTS.overloads +
     Number(row.kill_overloads||0)*IMPACT_POINTS.killOverloads +
     Number(row.plants||0)*IMPACT_POINTS.plants +
-    Number(row.defuses||0)*IMPACT_POINTS.defuses +
+    Number(row.defuses||0)*IMPACT_POINTS.defuses;
+
+  // Se conserva el puntaje acumulado anterior para estadísticas de equipos.
+  const impact_score=
+    kills*IMPACT_POINTS.kills +
+    assists*IMPACT_POINTS.assists +
+    objective_score +
     Number(row.bomb_carrier_kills||0)*IMPACT_POINTS.bombCarrierKills;
-  return {...row,hill_blocks:hillBlocks,impact_score,kd:row.deaths?row.kills/row.deaths:row.kills};
+
+  return {
+    ...row,
+    hill_blocks:hillBlocks,
+    objective_score,
+    impact_score,
+    kd:deaths ? kills/deaths : kills,
+    kills_per_map:maps ? kills/maps : 0,
+    assists_per_map:maps ? assists/maps : 0
+  };
+}
+
+function applyPerformanceRating(rows){
+  const bestKd=Math.max(0,...rows.map(r=>Number(r.kd||0)));
+  const bestObjectiveScore=Math.max(0,...rows.map(r=>Number(r.objective_score||0)));
+  const bestKillsPerMap=Math.max(0,...rows.map(r=>Number(r.kills_per_map||0)));
+  const bestAssistsPerMap=Math.max(0,...rows.map(r=>Number(r.assists_per_map||0)));
+
+  return rows.map(row=>{
+    const kd_normalized=bestKd ? (Number(row.kd||0)/bestKd)*100 : 0;
+    const objective_score_normalized=bestObjectiveScore
+      ? (Number(row.objective_score||0)/bestObjectiveScore)*100 : 0;
+    const kills_per_map_normalized=bestKillsPerMap
+      ? (Number(row.kills_per_map||0)/bestKillsPerMap)*100 : 0;
+    const assists_per_map_normalized=bestAssistsPerMap
+      ? (Number(row.assists_per_map||0)/bestAssistsPerMap)*100 : 0;
+
+    const performance_rating=
+      kd_normalized*PERFORMANCE_WEIGHTS.kd +
+      objective_score_normalized*PERFORMANCE_WEIGHTS.objectiveScore +
+      kills_per_map_normalized*PERFORMANCE_WEIGHTS.killsPerMap +
+      assists_per_map_normalized*PERFORMANCE_WEIGHTS.assistsPerMap;
+
+    return {
+      ...row,
+      kd_normalized,
+      objective_score_normalized,
+      kills_per_map_normalized,
+      assists_per_map_normalized,
+      performance_rating
+    };
+  }).sort((a,b)=>
+    b.performance_rating-a.performance_rating ||
+    b.kd-a.kd ||
+    b.objective_score-a.objective_score ||
+    b.kills_per_map-a.kills_per_map ||
+    b.assists_per_map-a.assists_per_map ||
+    b.kills-a.kills
+  );
 }
 
 function playerRanking(filters={}){
@@ -334,11 +400,10 @@ function playerRanking(filters={}){
     GROUP BY p.id
   `).all(...params,...params,...params,...params,...params,...params,...params,...params,...params,...params,...params);
 
-  return rows.map(addImpactScore).filter(r=>!filters.onlyActive||r.maps>0).sort((a,b)=>
-    b.impact_score-a.impact_score || b.kills-a.kills || b.assists-a.assists || a.deaths-b.deaths
-  ).map((r,index)=>({...r,position:index+1}));
+  const activeRows=rows.map(addImpactScore).filter(r=>!filters.onlyActive||r.maps>0);
+  return applyPerformanceRating(activeRows)
+    .map((r,index)=>({...r,position:index+1}));
 }
-
 function playerStats(){ return playerRanking(); }
 
 function teamStats(){
@@ -386,7 +451,15 @@ function automaticAwards(){
   const tournament=awardFromRanking("tournament","Mejor jugador del torneo",playerRanking({onlyActive:true}));
   const grandFinal=awardFromRanking("grand-final","MVP de la Grand Final",playerRanking({matchId:"GF",onlyActive:true}));
   const teams=db.prepare("SELECT id,name,logo,color FROM teams ORDER BY name").all();
-  const teamLeaders=teams.map(team=>({team,...awardFromRanking(`team-${team.id}`,`Mejor jugador de ${team.name}`,playerRanking({teamId:team.id,onlyActive:true}))}));
+  const overallRanking=playerRanking({onlyActive:true});
+  const teamLeaders=teams.map(team=>({
+    team,
+    ...awardFromRanking(
+      `team-${team.id}`,
+      `Mejor jugador de ${team.name}`,
+      overallRanking.filter(player=>player.team_id===team.id)
+    )
+  }));
   return {rounds,tournament,grandFinal,teamLeaders};
 }
 
@@ -409,7 +482,8 @@ function state(){
     teamStats:teamStats(),
     awards:automaticAwards(),
     rankings:rankings(),
-    impactPoints:IMPACT_POINTS
+    impactPoints:IMPACT_POINTS,
+    performanceWeights:PERFORMANCE_WEIGHTS
   };
 }
 

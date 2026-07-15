@@ -165,3 +165,38 @@ SWITCHAROO AMENO PRO v3.0 — IMPACT SCORE
 - MVP automático por jornada, torneo, equipo y Grand Final.
 - Rankings por liguilla, brackets y Grand Final.
 - Los datos anteriores se conservan; los campos nuevos comienzan en 0 para registros históricos.
+
+
+ACTUALIZACIÓN 3.1.0 — RATING PONDERADO
+--------------------------------------
+Esta actualización no modifica el esquema de la base de datos y no elimina
+resultados, estadísticas, equipos, jugadores, PIN, brackets ni Pick & Ban.
+
+La posición de cada jugador se calcula con un rating normalizado de 0 a 100:
+
+- 35% K/D.
+- 25% Objective Score.
+- 30% bajas por mapa.
+- 10% asistencias por mapa.
+
+Objective Score:
+- Overload: 300 puntos.
+- Kill Overload: 125 puntos.
+- Plant: 100 puntos.
+- Defuse: 100 puntos.
+- Objective Kill: 125 puntos.
+- Cada bloque completo de 5 segundos en Hill: 15 puntos.
+
+Cada componente se compara con el mejor valor del ranking correspondiente.
+El rating se usa automáticamente para:
+- Ranking general.
+- Ranking de liguilla.
+- Ranking de brackets.
+- Ranking de Grand Final.
+- MVP de cada jornada.
+- MVP del torneo.
+- MVP de la Grand Final.
+- Mejor jugador de cada equipo.
+
+Los Bomb Carrier Kills se conservan y se muestran, pero no forman parte del
+Objective Score solicitado en esta versión.
