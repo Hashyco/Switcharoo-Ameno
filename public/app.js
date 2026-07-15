@@ -33,7 +33,7 @@ function modeAwardCard(a){
   const mode=a?.mode||"";
   let detail="";
   if(a?.id&&mode==="Hardpoint")detail=`${Number(a.kills_per_map||0).toFixed(2)} bajas/mapa · ${Number(a.objective_score_per_map||0).toFixed(1)} Obj./mapa · ${a.hill_time||0}s Hill`;
-  if(a?.id&&mode==="Overload")detail=`${Number(a.kills_per_map||0).toFixed(2)} bajas/mapa · ${Number(a.objective_score_per_map||0).toFixed(1)} Obj./mapa · ${a.overloads||0} Overloads`;
+  if(a?.id&&mode==="Overload")detail=`${Number(a.kills_per_map||0).toFixed(2)} bajas/mapa · ${Number(a.objective_score_per_map||0).toFixed(1)} Obj./mapa · ${a.carrier_kills||0} Carrier Kills · ${a.kills_as_carrier||0} Kills as Carrier`;
   if(a?.id&&mode==="Search & Destroy")detail=`${Number(a.kills_per_map||0).toFixed(2)} bajas/mapa · ${Number(a.objective_score_per_map||0).toFixed(1)} Obj./mapa · ${a.plants||0} Plants`;
   return `<article class="card award-card impact-award mode-award">
     <div class="award-kicker">${esc(a?.label||`Mejor jugador de ${mode}`)}</div>
@@ -43,16 +43,16 @@ function modeAwardCard(a){
 function teamStatsTable(rows=S.state.teamStats){
   return `<div class="table-wrap"><table><thead><tr>
     <th>Pos.</th><th>Equipo</th><th>Puntaje</th><th>PJ</th><th>PG</th><th>PP</th><th>MG</th><th>MP</th>
-    <th>Bajas</th><th>Asist.</th><th>Obj. Kills</th><th>Hill</th><th>Overloads</th><th>Kill OL</th><th>Plants</th><th>Defuses</th><th>Carrier Kills</th>
+    <th>Bajas</th><th>Asist.</th><th>Obj. Kills</th><th>Hill</th><th>Overloads</th><th>Carrier Kills</th><th>Kills as Carrier</th><th>Plants</th><th>Defuses</th>
   </tr></thead><tbody>${rows.map(t=>`<tr>
     <td><span class="rank">${t.position||"—"}</span></td><td><div class="mini-team"><img src="${t.logo}"><strong>${esc(t.name)}</strong></div></td>
     <td><strong>${points(t.impact_score)}</strong></td><td>${t.matches_played}</td><td>${t.matches_won}</td><td>${t.matches_lost}</td><td>${t.maps_won}</td><td>${t.maps_lost}</td>
-    <td>${t.kills}</td><td>${t.assists}</td><td>${t.objective_kills}</td><td>${t.hill_time}s</td><td>${t.overloads}</td><td>${t.kill_overloads}</td><td>${t.plants}</td><td>${t.defuses}</td><td>${t.bomb_carrier_kills}</td>
+    <td>${t.kills}</td><td>${t.assists}</td><td>${t.objective_kills}</td><td>${t.hill_time}s</td><td>${t.overloads}</td><td>${t.carrier_kills}</td><td>${t.kills_as_carrier}</td><td>${t.plants}</td><td>${t.defuses}</td>
   </tr>`).join("")}</tbody></table></div>`;
 }
 function playerStatsTable(rows,compact=false){
-  return `<div class="table-wrap"><table><thead><tr><th>Pos.</th><th>Jugador</th><th>Equipo</th><th>Rating</th><th>K/D</th><th>Obj./Mapa</th><th>Bajas/Mapa</th><th>Asist./Mapa</th><th>Mapas</th><th>Bajas</th><th>Muertes</th><th>Asist.</th><th>Obj. Total</th><th>Obj. Kills</th><th>Hill</th><th>Overloads</th><th>Kill OL</th><th>Plants</th><th>Defuses</th><th>Carrier Kills</th></tr></thead>
-    <tbody>${rows.map((p,i)=>`<tr><td><span class="rank">${i+1}</span></td><td><strong>${esc(p.name)}</strong></td><td>${esc(p.team_name)}</td><td><strong>${rating(p.performance_rating)}</strong></td><td>${Number(p.kd).toFixed(2)}</td><td><strong>${Number(p.objective_score_per_map||0).toFixed(1)}</strong></td><td>${Number(p.kills_per_map||0).toFixed(2)}</td><td>${Number(p.assists_per_map||0).toFixed(2)}</td><td>${p.maps}</td><td>${p.kills}</td><td>${p.deaths}</td><td>${p.assists}</td><td>${points(p.objective_score)}</td><td>${p.objective_kills}</td><td>${p.hill_time}s</td><td>${p.overloads}</td><td>${p.kill_overloads}</td><td>${p.plants}</td><td>${p.defuses}</td><td>${p.bomb_carrier_kills}</td></tr>`).join("")}</tbody></table></div>`;
+  return `<div class="table-wrap"><table><thead><tr><th>Pos.</th><th>Jugador</th><th>Equipo</th><th>Rating</th><th>K/D</th><th>Obj./Mapa</th><th>Bajas/Mapa</th><th>Asist./Mapa</th><th>Mapas</th><th>Bajas</th><th>Muertes</th><th>Asist.</th><th>Obj. Total</th><th>Obj. Kills</th><th>Hill</th><th>Overloads</th><th>Carrier Kills</th><th>Kills as Carrier</th><th>Plants</th><th>Defuses</th></tr></thead>
+    <tbody>${rows.map((p,i)=>`<tr><td><span class="rank">${i+1}</span></td><td><strong>${esc(p.name)}</strong></td><td>${esc(p.team_name)}</td><td><strong>${rating(p.performance_rating)}</strong></td><td>${Number(p.kd).toFixed(2)}</td><td><strong>${Number(p.objective_score_per_map||0).toFixed(1)}</strong></td><td>${Number(p.kills_per_map||0).toFixed(2)}</td><td>${Number(p.assists_per_map||0).toFixed(2)}</td><td>${p.maps}</td><td>${p.kills}</td><td>${p.deaths}</td><td>${p.assists}</td><td>${points(p.objective_score)}</td><td>${p.objective_kills}</td><td>${p.hill_time}s</td><td>${p.overloads}</td><td>${p.carrier_kills}</td><td>${p.kills_as_carrier}</td><td>${p.plants}</td><td>${p.defuses}</td></tr>`).join("")}</tbody></table></div>`;
 }
 function phaseTop(title,rows){
   return `<article class="card card-body phase-top"><h3>${esc(title)}</h3>${rows.length?rows.slice(0,3).map((p,i)=>`<div class="leader-row"><span>${i+1}</span><img src="${p.logo}"><div><strong>${esc(p.name)}</strong><small>${esc(p.team_name)}</small></div><b>${rating(p.performance_rating)} rating</b></div>`).join(""):'<p class="muted">Pendiente de resultados.</p>'}</article>`;
@@ -86,7 +86,7 @@ function grandFinalPage(){
 }
 function statsPage(){
   const awards=S.state.awards||{};
-  return head("Estadísticas","Rating Mapa Neutral: jugar más mapas no aumenta directamente la posición.")+`<section class="score-formula card card-body"><h3>Fórmula Mapa Neutral</h3><p class="muted">Las cuatro variables se expresan como razón o promedio. Un jugador con 5 mapas y otro con 15 mapas recibirán el mismo rating si mantienen exactamente el mismo rendimiento por mapa. Las estadísticas acumuladas se muestran como información, pero no ordenan la tabla.</p><div class="formula-grid"><span>K/D normalizado <b>35%</b></span><span>Objective Score por mapa normalizado <b>25%</b></span><span>Bajas por mapa normalizadas <b>30%</b></span><span>Asistencias por mapa normalizadas <b>10%</b></span></div><h4>Composición del Objective Score</h4><div class="formula-grid"><span>Overload <b>+300</b></span><span>Kill Overload <b>+125</b></span><span>Plant <b>+100</b></span><span>Defuse <b>+100</b></span><span>Objective Kill <b>+125</b></span><span>Cada 5 s en Hill <b>+15</b></span></div></section>
+  return head("Estadísticas","Rating Mapa Neutral: jugar más mapas no aumenta directamente la posición.")+`<section class="score-formula card card-body"><h3>Fórmula Mapa Neutral</h3><p class="muted">Las cuatro variables se expresan como razón o promedio. Un jugador con 5 mapas y otro con 15 mapas recibirán el mismo rating si mantienen exactamente el mismo rendimiento por mapa. Las estadísticas acumuladas se muestran como información, pero no ordenan la tabla.</p><div class="formula-grid"><span>K/D normalizado <b>35%</b></span><span>Objective Score por mapa normalizado <b>25%</b></span><span>Bajas por mapa normalizadas <b>30%</b></span><span>Asistencias por mapa normalizadas <b>10%</b></span></div><h4>Composición del Objective Score</h4><div class="formula-grid"><span>Overload <b>+300</b></span><span>Carrier Kill <b>+125</b></span><span>Kill as Carrier <b>+125</b></span><span>Plant <b>+100</b></span><span>Defuse <b>+100</b></span><span>Objective Kill <b>+125</b></span><span>Cada 5 s en Hill <b>+15</b></span></div></section>
     <h3 class="section-title">MVP automáticos</h3><section class="grid grid-4 awards-grid">${(awards.rounds||[]).map((a,i)=>awardCard(a,`Mejor jugador · Jornada ${i+1}`)).join("")}${awardCard(awards.tournament,"Mejor jugador del torneo")}${awardCard(awards.grandFinal,"MVP de la Grand Final")}</section>
     <h3 class="section-title">Mejor jugador por modalidad</h3><section class="grid grid-3 awards-grid mode-awards">${(awards.modes||[]).map(modeAwardCard).join("")}</section>
     <h3 class="section-title">Mejor jugador de cada equipo</h3><section class="grid grid-4 awards-grid">${(awards.teamLeaders||[]).map(x=>awardCard(x,`Referente · ${x.team.name}`)).join("")}</section>
@@ -116,18 +116,41 @@ function bind(){
 async function review(id,ok){try{S.state=await api(`/api/admin/${ok?"approve":"reject"}/${id}`,{method:"POST",body:"{}"});toast(ok?"Aprobado":"Rechazado","success");render()}catch(e){toast(e.message,"error")}}
 function resultFieldsForMode(mode){
   if(mode==="Hardpoint")return ["kills","deaths","assists","hillTime","objectiveKills"];
-  if(mode==="Search & Destroy")return ["kills","deaths","assists","bombCarrierKills","plants","defuses"];
-  return ["kills","deaths","assists","overloads","killOverloads"];
+  if(mode==="Search & Destroy")return ["kills","deaths","assists","plants","defuses"];
+  return ["kills","deaths","assists","overloads","carrierKills","killsAsCarrier"];
 }
 function resultFieldLabel(field){
-  return {kills:"Bajas",deaths:"Muertes",assists:"Asistencias",hillTime:"Hill Time",objectiveKills:"Objective Kills",overloads:"Overloads",killOverloads:"Kill Overloads",bombCarrierKills:"Bomb Carrier Kills",plants:"Plant",defuses:"Defuse"}[field]||field;
+  return {
+    kills:"Bajas",
+    deaths:"Muertes",
+    assists:"Asistencias",
+    hillTime:"Hill Time",
+    objectiveKills:"Objective Kills",
+    overloads:"Overloads",
+    carrierKills:"Carrier Kills",
+    killsAsCarrier:"Kills as Carrier",
+    plants:"Plant",
+    defuses:"Defuse"
+  }[field]||field;
 }
 
 function emptyMapDraft(m,a,b,mapIndex=0){
   const mm=m.maps[mapIndex]||{},stored=mm.stats||[];
   return {scoreA:mm.score_a??"",scoreB:mm.score_b??"",stats:[...a.roster,...b.roster].map(p=>{
     const old=stored.find(x=>x.player_id===p.id)||{};
-    return {playerId:p.id,kills:Number(old.kills)||0,deaths:Number(old.deaths)||0,assists:Number(old.assists)||0,hillTime:Number(old.hill_time)||0,objectiveKills:Number(old.objective_kills)||0,plants:Number(old.plants)||0,defuses:Number(old.defuses)||0,overloads:Number(old.overloads)||0,killOverloads:Number(old.kill_overloads)||0,bombCarrierKills:Number(old.bomb_carrier_kills)||0};
+    return {
+      playerId:p.id,
+      kills:Number(old.kills)||0,
+      deaths:Number(old.deaths)||0,
+      assists:Number(old.assists)||0,
+      hillTime:Number(old.hill_time)||0,
+      objectiveKills:Number(old.objective_kills)||0,
+      plants:Number(old.plants)||0,
+      defuses:Number(old.defuses)||0,
+      overloads:Number(old.overloads)||0,
+      carrierKills:Number(old.carrier_kills)||0,
+      killsAsCarrier:Number(old.kills_as_carrier)||0
+    };
   })};
 }
 

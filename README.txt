@@ -258,3 +258,53 @@ Tratamiento de FF:
 - Un FF no debe generar estadísticas ficticias.
 - Si no se insertan filas de estadísticas, no aumenta el número de mapas del jugador.
 - La victoria del equipo puede registrarse por separado del rendimiento individual.
+
+
+ACTUALIZACIÓN 3.4.0 — OBJETIVOS DE OVERLOAD
+--------------------------------------------
+Migración segura: no elimina datos existentes.
+
+Cambios en los formularios:
+Hardpoint:
+- Bajas
+- Muertes
+- Asistencias
+- Hill Time
+- Objective Kills
+
+Overload:
+- Bajas
+- Muertes
+- Asistencias
+- Overloads
+- Carrier Kills
+- Kills as Carrier
+
+Search & Destroy:
+- Bajas
+- Muertes
+- Asistencias
+- Plants
+- Defuses
+
+Campos retirados de la interfaz y del rating:
+- Bomb Carrier Kills de Search & Destroy.
+- Kill Overloads de Overload.
+
+Los campos antiguos permanecen físicamente en la base de datos para mantener
+compatibilidad, pero ya no se muestran ni se utilizan en los cálculos.
+
+Objective Score actualizado:
+- Overload: 300 puntos.
+- Carrier Kill: 125 puntos.
+- Kill as Carrier: 125 puntos.
+- Plant: 100 puntos.
+- Defuse: 100 puntos.
+- Objective Kill: 125 puntos.
+- Cada bloque completo de 5 segundos en Hill: 15 puntos.
+
+El rating continúa siendo Mapa Neutral:
+- 35% K/D.
+- 25% Objective Score por mapa.
+- 30% bajas por mapa.
+- 10% asistencias por mapa.

@@ -129,6 +129,8 @@ function initDb() {
       overloads INTEGER NOT NULL DEFAULT 0,
       kill_overloads INTEGER NOT NULL DEFAULT 0,
       bomb_carrier_kills INTEGER NOT NULL DEFAULT 0,
+      carrier_kills INTEGER NOT NULL DEFAULT 0,
+      kills_as_carrier INTEGER NOT NULL DEFAULT 0,
       UNIQUE(match_map_id,player_id),
       FOREIGN KEY(match_map_id) REFERENCES match_maps(id) ON DELETE CASCADE,
       FOREIGN KEY(player_id) REFERENCES players(id) ON DELETE CASCADE
@@ -147,6 +149,8 @@ function initDb() {
   ensureColumn("player_stats", "objective_kills", "INTEGER NOT NULL DEFAULT 0");
   ensureColumn("player_stats", "kill_overloads", "INTEGER NOT NULL DEFAULT 0");
   ensureColumn("player_stats", "bomb_carrier_kills", "INTEGER NOT NULL DEFAULT 0");
+  ensureColumn("player_stats", "carrier_kills", "INTEGER NOT NULL DEFAULT 0");
+  ensureColumn("player_stats", "kills_as_carrier", "INTEGER NOT NULL DEFAULT 0");
 
   const count = db.prepare("SELECT COUNT(*) n FROM teams").get().n;
   if (count === 0) {
@@ -283,10 +287,10 @@ const IMPACT_POINTS = Object.freeze({
   objectiveKills:125,
   hillBlock:15,
   overloads:300,
-  killOverloads:125,
+  carrierKills:125,
+  killsAsCarrier:125,
   plants:100,
-  defuses:100,
-  bombCarrierKills:125
+  defuses:100
 });
 
 const PERFORMANCE_WEIGHTS = Object.freeze({
@@ -303,22 +307,24 @@ function addImpactScore(row){
   const assists=Number(row.assists||0);
   const hillBlocks=Math.floor(Number(row.hill_time||0)/5);
 
-  // Objective Score solicitado para el rating:
-  // Overload, Kill Overload, Plant, Defuse, Objective Kill y Hill Time.
+  // Objective Score utilizado por el rating Mapa Neutral:
+  // Hardpoint: Objective Kills y Hill Time.
+  // Overload: Overloads, Carrier Kills y Kills as Carrier.
+  // Search & Destroy: Plants y Defuses.
   const objective_score=
     Number(row.objective_kills||0)*IMPACT_POINTS.objectiveKills +
     hillBlocks*IMPACT_POINTS.hillBlock +
     Number(row.overloads||0)*IMPACT_POINTS.overloads +
-    Number(row.kill_overloads||0)*IMPACT_POINTS.killOverloads +
+    Number(row.carrier_kills||0)*IMPACT_POINTS.carrierKills +
+    Number(row.kills_as_carrier||0)*IMPACT_POINTS.killsAsCarrier +
     Number(row.plants||0)*IMPACT_POINTS.plants +
     Number(row.defuses||0)*IMPACT_POINTS.defuses;
 
-  // Se conserva el puntaje acumulado anterior para estadísticas de equipos.
+  // Puntaje acumulado informativo para estadísticas de equipos.
   const impact_score=
     kills*IMPACT_POINTS.kills +
     assists*IMPACT_POINTS.assists +
-    objective_score +
-    Number(row.bomb_carrier_kills||0)*IMPACT_POINTS.bombCarrierKills;
+    objective_score;
 
   return {
     ...row,
@@ -402,8 +408,8 @@ function playerRanking(filters={}){
       COALESCE(SUM(CASE WHEN ${eligible} THEN ps.plants ELSE 0 END),0) plants,
       COALESCE(SUM(CASE WHEN ${eligible} THEN ps.defuses ELSE 0 END),0) defuses,
       COALESCE(SUM(CASE WHEN ${eligible} THEN ps.overloads ELSE 0 END),0) overloads,
-      COALESCE(SUM(CASE WHEN ${eligible} THEN ps.kill_overloads ELSE 0 END),0) kill_overloads,
-      COALESCE(SUM(CASE WHEN ${eligible} THEN ps.bomb_carrier_kills ELSE 0 END),0) bomb_carrier_kills
+      COALESCE(SUM(CASE WHEN ${eligible} THEN ps.carrier_kills ELSE 0 END),0) carrier_kills,
+      COALESCE(SUM(CASE WHEN ${eligible} THEN ps.kills_as_carrier ELSE 0 END),0) kills_as_carrier
     FROM players p
     JOIN teams t ON t.id=p.team_id
     LEFT JOIN player_stats ps ON ps.player_id=p.id
@@ -435,8 +441,8 @@ function teamStats(){
       COALESCE(SUM(CASE WHEN m.approved=1 THEN ps.plants ELSE 0 END),0) plants,
       COALESCE(SUM(CASE WHEN m.approved=1 THEN ps.defuses ELSE 0 END),0) defuses,
       COALESCE(SUM(CASE WHEN m.approved=1 THEN ps.overloads ELSE 0 END),0) overloads,
-      COALESCE(SUM(CASE WHEN m.approved=1 THEN ps.kill_overloads ELSE 0 END),0) kill_overloads,
-      COALESCE(SUM(CASE WHEN m.approved=1 THEN ps.bomb_carrier_kills ELSE 0 END),0) bomb_carrier_kills
+      COALESCE(SUM(CASE WHEN m.approved=1 THEN ps.carrier_kills ELSE 0 END),0) carrier_kills,
+      COALESCE(SUM(CASE WHEN m.approved=1 THEN ps.kills_as_carrier ELSE 0 END),0) kills_as_carrier
     FROM teams t
     LEFT JOIN matches m ON (m.team_a=t.id OR m.team_b=t.id)
     LEFT JOIN match_maps mm ON mm.match_id=m.id
@@ -517,7 +523,7 @@ function state(){
     impactPoints:IMPACT_POINTS,
     performanceWeights:PERFORMANCE_WEIGHTS,
     ratingSystem:{
-      version:"3.3.0",
+      version:"3.4.0",
       name:"Mapa Neutral",
       objectiveMetric:"objective_score_per_map",
       description:"El número total de mapas no otorga ventaja directa en el rating."
@@ -672,19 +678,19 @@ app.post("/api/results/:matchId",auth(),upload.single("evidence"),(req,res)=>{
       for(const s of (r.stats||[])){
         db.prepare(`INSERT INTO player_stats(
           id,match_map_id,player_id,kills,deaths,assists,hill_time,objective_kills,
-          plants,defuses,overloads,kill_overloads,bomb_carrier_kills
+          plants,defuses,overloads,carrier_kills,kills_as_carrier
         ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)
           ON CONFLICT(match_map_id,player_id) DO UPDATE SET
           kills=excluded.kills,deaths=excluded.deaths,assists=excluded.assists,
           hill_time=excluded.hill_time,objective_kills=excluded.objective_kills,
           plants=excluded.plants,defuses=excluded.defuses,overloads=excluded.overloads,
-          kill_overloads=excluded.kill_overloads,bomb_carrier_kills=excluded.bomb_carrier_kills`)
+          carrier_kills=excluded.carrier_kills,kills_as_carrier=excluded.kills_as_carrier`)
           .run(
             id("stat"),mm.id,s.playerId,
             Number(s.kills)||0,Number(s.deaths)||0,Number(s.assists)||0,
             Number(s.hillTime)||0,Number(s.objectiveKills)||0,
             Number(s.plants)||0,Number(s.defuses)||0,Number(s.overloads)||0,
-            Number(s.killOverloads)||0,Number(s.bombCarrierKills)||0
+            Number(s.carrierKills)||0,Number(s.killsAsCarrier)||0
           );
       }
     });
