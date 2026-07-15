@@ -1185,3 +1185,19 @@ textarea { resize: vertical; min-height: 90px; }
 .mode-awards .mode-award{
   min-height:150px;
 }
+
+
+/* v3.3 — Sistema Mapa Neutral */
+.score-formula::before{
+  content:"SISTEMA MAPA NEUTRAL";
+  display:inline-flex;
+  margin-bottom:10px;
+  padding:5px 9px;
+  border:1px solid rgba(84,190,255,.35);
+  border-radius:999px;
+  font-size:.7rem;
+  font-weight:800;
+  letter-spacing:.08em;
+  color:#8ed8ff;
+  background:rgba(38,142,205,.09);
+}

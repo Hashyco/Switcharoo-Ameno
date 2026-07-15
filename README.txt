@@ -227,3 +227,34 @@ Objective Score por modalidad:
 También se agregó un Top 3 automático por cada modalidad.
 Los Bomb Carrier Kills se conservan y se muestran, pero no forman parte del
 Objective Score establecido para la versión 3.1.
+
+
+ACTUALIZACIÓN 3.3.0 — SISTEMA MAPA NEUTRAL
+-------------------------------------------
+Esta actualización NO modifica el esquema de la base de datos y NO elimina:
+- Resultados.
+- Estadísticas ingresadas.
+- Equipos y jugadores.
+- Liguilla, brackets o Grand Final.
+- Pick & Ban.
+- Evidencias.
+
+Nuevo rating:
+- 35% K/D normalizado.
+- 25% Objective Score POR MAPA normalizado.
+- 30% bajas POR MAPA normalizadas.
+- 10% asistencias POR MAPA normalizadas.
+
+Objective Score por mapa:
+Objective Score acumulado / mapas realmente registrados para el jugador.
+
+El número total de mapas deja de ser una ventaja directa:
+- Las estadísticas acumuladas continúan visibles.
+- Las estadísticas acumuladas no se utilizan para ordenar.
+- Los desempates tampoco utilizan bajas totales ni Objective Score total.
+- Los MVP de jornada, torneo, equipo, modo y Grand Final usan el mismo sistema.
+
+Tratamiento de FF:
+- Un FF no debe generar estadísticas ficticias.
+- Si no se insertan filas de estadísticas, no aumenta el número de mapas del jugador.
+- La victoria del equipo puede registrarse por separado del rendimiento individual.

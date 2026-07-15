@@ -324,6 +324,7 @@ function addImpactScore(row){
     ...row,
     hill_blocks:hillBlocks,
     objective_score,
+    objective_score_per_map:maps ? objective_score/maps : 0,
     impact_score,
     kd:deaths ? kills/deaths : kills,
     kills_per_map:maps ? kills/maps : 0,
@@ -333,29 +334,39 @@ function addImpactScore(row){
 
 function applyPerformanceRating(rows){
   const bestKd=Math.max(0,...rows.map(r=>Number(r.kd||0)));
-  const bestObjectiveScore=Math.max(0,...rows.map(r=>Number(r.objective_score||0)));
+  const bestObjectiveScorePerMap=Math.max(
+    0,
+    ...rows.map(r=>Number(r.objective_score_per_map||0))
+  );
   const bestKillsPerMap=Math.max(0,...rows.map(r=>Number(r.kills_per_map||0)));
   const bestAssistsPerMap=Math.max(0,...rows.map(r=>Number(r.assists_per_map||0)));
 
   return rows.map(row=>{
-    const kd_normalized=bestKd ? (Number(row.kd||0)/bestKd)*100 : 0;
-    const objective_score_normalized=bestObjectiveScore
-      ? (Number(row.objective_score||0)/bestObjectiveScore)*100 : 0;
+    const kd_normalized=bestKd
+      ? (Number(row.kd||0)/bestKd)*100
+      : 0;
+    const objective_score_per_map_normalized=bestObjectiveScorePerMap
+      ? (Number(row.objective_score_per_map||0)/bestObjectiveScorePerMap)*100
+      : 0;
     const kills_per_map_normalized=bestKillsPerMap
-      ? (Number(row.kills_per_map||0)/bestKillsPerMap)*100 : 0;
+      ? (Number(row.kills_per_map||0)/bestKillsPerMap)*100
+      : 0;
     const assists_per_map_normalized=bestAssistsPerMap
-      ? (Number(row.assists_per_map||0)/bestAssistsPerMap)*100 : 0;
+      ? (Number(row.assists_per_map||0)/bestAssistsPerMap)*100
+      : 0;
 
     const performance_rating=
       kd_normalized*PERFORMANCE_WEIGHTS.kd +
-      objective_score_normalized*PERFORMANCE_WEIGHTS.objectiveScore +
+      objective_score_per_map_normalized*PERFORMANCE_WEIGHTS.objectiveScore +
       kills_per_map_normalized*PERFORMANCE_WEIGHTS.killsPerMap +
       assists_per_map_normalized*PERFORMANCE_WEIGHTS.assistsPerMap;
 
     return {
       ...row,
       kd_normalized,
-      objective_score_normalized,
+      objective_score_per_map_normalized,
+      // Alias conservado para no romper interfaces antiguas.
+      objective_score_normalized:objective_score_per_map_normalized,
       kills_per_map_normalized,
       assists_per_map_normalized,
       performance_rating
@@ -363,10 +374,10 @@ function applyPerformanceRating(rows){
   }).sort((a,b)=>
     b.performance_rating-a.performance_rating ||
     b.kd-a.kd ||
-    b.objective_score-a.objective_score ||
+    b.objective_score_per_map-a.objective_score_per_map ||
     b.kills_per_map-a.kills_per_map ||
     b.assists_per_map-a.assists_per_map ||
-    b.kills-a.kills
+    String(a.name).localeCompare(String(b.name),"es")
   );
 }
 
@@ -504,7 +515,13 @@ function state(){
     awards:automaticAwards(),
     rankings:rankings(),
     impactPoints:IMPACT_POINTS,
-    performanceWeights:PERFORMANCE_WEIGHTS
+    performanceWeights:PERFORMANCE_WEIGHTS,
+    ratingSystem:{
+      version:"3.3.0",
+      name:"Mapa Neutral",
+      objectiveMetric:"objective_score_per_map",
+      description:"El número total de mapas no otorga ventaja directa en el rating."
+    }
   };
 }
 
