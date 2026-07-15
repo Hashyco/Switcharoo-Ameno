@@ -1172,3 +1172,16 @@ textarea { resize: vertical; min-height: 90px; }
 .formula-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}.formula-grid span{padding:11px;border-radius:10px;background:rgba(255,255,255,.045);display:flex;justify-content:space-between;gap:10px}.formula-grid b{color:#f2c75c}.impact-award .award-player b{display:block;color:#f2c75c;margin-top:5px}.phase-top .leader-row{display:grid;grid-template-columns:28px 38px 1fr auto;align-items:center;gap:9px;padding:9px 0;border-top:1px solid rgba(255,255,255,.08)}.phase-top .leader-row>span{width:25px;height:25px;border-radius:50%;display:grid;place-items:center;background:#b88a24;font-weight:900}.phase-top img{width:35px;height:35px;object-fit:contain}.phase-top strong,.phase-top small{display:block}.phase-top small{color:var(--muted)}.phase-top b{color:#f2c75c}.auto-mvp{display:flex;align-items:center;gap:15px}.auto-mvp img{width:72px;height:72px;object-fit:contain}.auto-mvp strong,.auto-mvp span,.auto-mvp b{display:block}.auto-mvp b{color:#f2c75c;margin-top:5px}.gf-mvp{margin-top:12px;text-align:center;padding:9px 13px;border:1px solid rgba(242,199,92,.4);border-radius:11px;background:rgba(242,199,92,.08)}.gf-mvp small,.gf-mvp strong,.gf-mvp span{display:block}.gf-mvp strong{font-size:1.1rem}.gf-mvp span{color:#f2c75c}.rw-player-row{grid-template-columns:minmax(130px,1.3fr) repeat(auto-fit,minmax(72px,1fr))!important}.rw-player-row label span{white-space:normal;line-height:1.05;min-height:28px}.rw-player-row input{min-width:0}.score-formula{border-color:rgba(215,174,69,.32)!important}
 @media(max-width:760px){.formula-grid{grid-template-columns:1fr 1fr}.rw-player-row{grid-template-columns:1fr 1fr!important}.rw-player-row>strong{grid-column:1/-1}}
 @media(max-width:480px){.formula-grid{grid-template-columns:1fr}}
+
+
+/* v3.2 — Mejor jugador por modalidad */
+.mode-award .award-player small{
+  display:block;
+  margin-top:7px;
+  color:var(--muted);
+  font-size:.76rem;
+  line-height:1.35;
+}
+.mode-awards .mode-award{
+  min-height:150px;
+}

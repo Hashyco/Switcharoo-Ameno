@@ -200,3 +200,30 @@ El rating se usa automáticamente para:
 
 Los Bomb Carrier Kills se conservan y se muestran, pero no forman parte del
 Objective Score solicitado en esta versión.
+
+
+ACTUALIZACIÓN 3.2.0 — MEJOR JUGADOR POR MODALIDAD
+--------------------------------------------------
+No modifica el esquema de la base de datos y no elimina datos existentes.
+
+Se agregaron reconocimientos automáticos para:
+- Mejor jugador de Hardpoint.
+- Mejor jugador de Overload.
+- Mejor jugador de Search & Destroy.
+
+Cada premio utiliza exclusivamente las estadísticas de los mapas de su modo
+y aplica la misma fórmula de rating:
+
+- 35% K/D del modo.
+- 25% Objective Score del modo.
+- 30% bajas por mapa del modo.
+- 10% asistencias por mapa del modo.
+
+Objective Score por modalidad:
+- Hardpoint: Objective Kills + bloques completos de 5 segundos en Hill.
+- Overload: Overloads + Kill Overloads.
+- Search & Destroy: Plants + Defuses.
+
+También se agregó un Top 3 automático por cada modalidad.
+Los Bomb Carrier Kills se conservan y se muestran, pero no forman parte del
+Objective Score establecido para la versión 3.1.

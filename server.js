@@ -377,6 +377,7 @@ function playerRanking(filters={}){
   if(filters.roundNo){conditions.push("m.round_no=?");params.push(filters.roundNo)}
   if(filters.matchId){conditions.push("m.id=?");params.push(filters.matchId)}
   if(filters.teamId){conditions.push("p.team_id=?");params.push(filters.teamId)}
+  if(filters.mode){conditions.push("mm.mode=?");params.push(filters.mode)}
   const eligible=conditions.join(" AND ");
 
   const rows=db.prepare(`
@@ -450,6 +451,21 @@ function automaticAwards(){
   ));
   const tournament=awardFromRanking("tournament","Mejor jugador del torneo",playerRanking({onlyActive:true}));
   const grandFinal=awardFromRanking("grand-final","MVP de la Grand Final",playerRanking({matchId:"GF",onlyActive:true}));
+
+  const modes=[
+    {key:"hardpoint",mode:"Hardpoint",label:"Mejor jugador de Hardpoint"},
+    {key:"overload",mode:"Overload",label:"Mejor jugador de Overload"},
+    {key:"search-destroy",mode:"Search & Destroy",label:"Mejor jugador de Search & Destroy"}
+  ].map(item=>({
+    key:item.key,
+    mode:item.mode,
+    ...awardFromRanking(
+      `mode-${item.key}`,
+      item.label,
+      playerRanking({mode:item.mode,onlyActive:true})
+    )
+  }));
+
   const teams=db.prepare("SELECT id,name,logo,color FROM teams ORDER BY name").all();
   const overallRanking=playerRanking({onlyActive:true});
   const teamLeaders=teams.map(team=>({
@@ -460,7 +476,7 @@ function automaticAwards(){
       overallRanking.filter(player=>player.team_id===team.id)
     )
   }));
-  return {rounds,tournament,grandFinal,teamLeaders};
+  return {rounds,tournament,grandFinal,modes,teamLeaders};
 }
 
 function rankings(){
@@ -468,7 +484,12 @@ function rankings(){
     overall:playerRanking(),
     league:playerRanking({phase:"league",onlyActive:true}),
     bracket:playerRanking({phase:"bracket",onlyActive:true}),
-    grandFinal:playerRanking({matchId:"GF",onlyActive:true})
+    grandFinal:playerRanking({matchId:"GF",onlyActive:true}),
+    byMode:{
+      hardpoint:playerRanking({mode:"Hardpoint",onlyActive:true}),
+      overload:playerRanking({mode:"Overload",onlyActive:true}),
+      searchDestroy:playerRanking({mode:"Search & Destroy",onlyActive:true})
+    }
   };
 }
 
