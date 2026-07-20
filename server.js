@@ -264,6 +264,83 @@ function fullMatch(idValue){
   match.pickban=db.prepare("SELECT * FROM pickban_actions WHERE match_id=? ORDER BY action_index").all(idValue);
   return match;
 }
+function bracketLoser(match){
+  if(!match||match.approved!==1||!match.winner_id||!match.team_a||!match.team_b) return null;
+  return match.winner_id===match.team_a ? match.team_b : match.team_a;
+}
+
+function syncBracketProgress(){
+  const rows=db.prepare(`
+    SELECT id,team_a,team_b,winner_id,status,approved
+    FROM matches
+    WHERE phase='bracket'
+  `).all();
+
+  if(!rows.length) return {updated:0};
+
+  const byId=Object.fromEntries(rows.map(match=>[match.id,match]));
+  const winner=idValue=>{
+    const match=byId[idValue];
+    return match&&match.approved===1 ? match.winner_id : null;
+  };
+  const loser=idValue=>bracketLoser(byId[idValue]);
+
+  const desired={
+    WF:{teamA:winner("WB1"),teamB:winner("WB2")},
+    LR1:{teamA:loser("WB1"),teamB:loser("WB2")},
+    LF:{teamA:winner("LR1"),teamB:loser("WF")},
+    GF:{teamA:winner("WF"),teamB:winner("LF")}
+  };
+
+  const updateMatch=db.prepare(`
+    UPDATE matches
+    SET team_a=?,team_b=?,winner_id=NULL,score_a=NULL,score_b=NULL,
+        evidence_path=NULL,notes=NULL,status=?,approved=0,updated_at=?
+    WHERE id=?
+  `);
+  const promoteWaiting=db.prepare(`
+    UPDATE matches
+    SET status='pickban',updated_at=?
+    WHERE id=? AND status='waiting' AND team_a IS NOT NULL AND team_b IS NOT NULL
+  `);
+  const mapCount=db.prepare("SELECT COUNT(*) n FROM match_maps WHERE match_id=?");
+  const pickBanCount=db.prepare("SELECT COUNT(*) n FROM pickban_actions WHERE match_id=?");
+
+  let updated=0;
+
+  for(const [matchId,next] of Object.entries(desired)){
+    const current=byId[matchId];
+    if(!current) continue;
+
+    const nextA=next.teamA||null;
+    const nextB=next.teamB||null;
+    const changed=current.team_a!==nextA||current.team_b!==nextB;
+
+    if(changed){
+      // No sobrescribir un cruce que ya tenga un resultado aprobado o pendiente.
+      // En cruces aún no jugados se eliminan mapas/Pick & Ban anteriores para
+      // evitar que queden asociados a participantes diferentes.
+      const locked=current.approved===1||current.status==="pending"||current.status==="completed";
+      if(!locked){
+        if(mapCount.get(matchId).n) db.prepare("DELETE FROM match_maps WHERE match_id=?").run(matchId);
+        if(pickBanCount.get(matchId).n) db.prepare("DELETE FROM pickban_actions WHERE match_id=?").run(matchId);
+        const status=nextA&&nextB ? "pickban" : "waiting";
+        updateMatch.run(nextA,nextB,status,now(),matchId);
+        current.team_a=nextA;
+        current.team_b=nextB;
+        current.status=status;
+        updated++;
+      }
+    }else if(nextA&&nextB&&current.status==="waiting"){
+      promoteWaiting.run(now(),matchId);
+      current.status="pickban";
+      updated++;
+    }
+  }
+
+  return {updated};
+}
+
 function standings(){
   const teams=db.prepare("SELECT * FROM teams").all().map(t=>({...t,played:0,wins:0,losses:0,maps_won:0,maps_lost:0,points:0}));
   const by=Object.fromEntries(teams.map(t=>[t.id,t]));
@@ -511,6 +588,7 @@ function rankings(){
 }
 
 function state(){
+  syncBracketProgress();
   return {
     teams:db.prepare("SELECT * FROM teams").all().map(t=>({...t,roster:db.prepare("SELECT * FROM players WHERE team_id=? ORDER BY is_captain DESC,id").all(t.id)})),
     league:db.prepare("SELECT * FROM matches WHERE phase='league' ORDER BY round_no,id").all().map(m=>fullMatch(m.id)),
@@ -523,7 +601,7 @@ function state(){
     impactPoints:IMPACT_POINTS,
     performanceWeights:PERFORMANCE_WEIGHTS,
     ratingSystem:{
-      version:"3.4.0",
+      version:"3.4.1",
       name:"Mapa Neutral",
       objectiveMetric:"objective_score_per_map",
       description:"El número total de mapas no otorga ventaja directa en el rating."
@@ -589,6 +667,11 @@ app.post("/api/admin/bracket",auth("admin"),(req,res)=>{
     defs.forEach(d=>im.run(d[0],"bracket",d[1],d[2],d[3],d[4],d[5],d[3]&&d[4]?"pickban":"waiting",now(),now()));
     db.exec("COMMIT");res.json(state());
   }catch(e){db.exec("ROLLBACK");res.status(500).json({error:e.message});}
+});
+
+app.post("/api/admin/bracket/sync",auth("admin"),(req,res)=>{
+  const result=syncBracketProgress();
+  res.json({...state(),bracketSync:result});
 });
 
 app.post("/api/pickban/start",auth(),(req,res)=>{
@@ -708,13 +791,7 @@ app.post("/api/admin/approve/:matchId",auth("admin"),(req,res)=>{
   const m=fullMatch(req.params.matchId);
   if(!m||m.status!=="pending") return res.status(400).json({error:"No hay resultado pendiente."});
   db.prepare("UPDATE matches SET approved=1,status='completed',updated_at=? WHERE id=?").run(now(),m.id);
-  // Propagate bracket teams
-  if(m.id==="WB1"){db.prepare("UPDATE matches SET team_a=?,updated_at=? WHERE id='WF'").run(m.winner_id,now());db.prepare("UPDATE matches SET team_a=?,updated_at=? WHERE id='LR1'").run(m.winner_id===m.team_a?m.team_b:m.team_a,now());}
-  if(m.id==="WB2"){db.prepare("UPDATE matches SET team_b=?,updated_at=? WHERE id='WF'").run(m.winner_id,now());db.prepare("UPDATE matches SET team_b=?,updated_at=? WHERE id='LR1'").run(m.winner_id===m.team_a?m.team_b:m.team_a,now());}
-  if(m.id==="WF"){db.prepare("UPDATE matches SET team_a=?,updated_at=? WHERE id='GF'").run(m.winner_id,now());db.prepare("UPDATE matches SET team_b=?,updated_at=? WHERE id='LF'").run(m.winner_id===m.team_a?m.team_b:m.team_a,now());}
-  if(m.id==="LR1"){db.prepare("UPDATE matches SET team_a=?,updated_at=? WHERE id='LF'").run(m.winner_id,now());}
-  if(m.id==="LF"){db.prepare("UPDATE matches SET team_b=?,updated_at=? WHERE id='GF'").run(m.winner_id,now());}
-  db.prepare("UPDATE matches SET status='pickban' WHERE phase='bracket' AND team_a IS NOT NULL AND team_b IS NOT NULL AND status='waiting'").run();
+  syncBracketProgress();
   res.json(state());
 });
 app.post("/api/admin/reject/:matchId",auth("admin"),(req,res)=>{
