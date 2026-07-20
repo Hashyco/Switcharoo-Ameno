@@ -308,3 +308,33 @@ El rating continúa siendo Mapa Neutral:
 - 25% Objective Score por mapa.
 - 30% bajas por mapa.
 - 10% asistencias por mapa.
+
+
+ACTUALIZACIÓN 3.4.1 — FLUJO DE BRACKETS CORREGIDO
+--------------------------------------------------
+No modifica el esquema de la base de datos y no elimina resultados existentes.
+
+Problema corregido:
+Cuando el administrador introducía un resultado directamente, el partido
+quedaba aprobado de inmediato, pero el ganador y el perdedor no se enviaban
+a los cruces siguientes porque la propagación solo se ejecutaba mediante el
+botón Aprobar.
+
+Nuevo comportamiento automático:
+- Ganador WB1 -> Winners Final.
+- Perdedor WB1 -> Losers Round 1.
+- Ganador WB2 -> Winners Final.
+- Perdedor WB2 -> Losers Round 1.
+- Ganador LR1 -> Losers Final.
+- Perdedor Winners Final -> Losers Final.
+- Ganador Winners Final -> Grand Final.
+- Ganador Losers Final -> Grand Final.
+
+La sincronización se ejecuta:
+- Al cargar el estado de la página.
+- Al aprobar un resultado.
+- Al registrar directamente un resultado como administrador.
+- Mediante el botón administrativo "Sincronizar cruces".
+
+La función también repara brackets que ya estaban creados y cuyos resultados
+aprobados no habían avanzado a la siguiente ronda.
