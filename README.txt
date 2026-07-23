@@ -338,3 +338,34 @@ La sincronización se ejecuta:
 
 La función también repara brackets que ya estaban creados y cuyos resultados
 aprobados no habían avanzado a la siguiente ronda.
+
+ACTUALIZACIÓN 3.5.0 — ALL-STAR GAME AUTOMÁTICO
+------------------------------------------------
+Migración segura y no destructiva. Esta versión crea tablas nuevas para el
+All-Star Game y no modifica ni elimina los resultados, estadísticas, equipos,
+jugadores, PIN, brackets, Grand Final, Pick & Ban o evidencias existentes.
+
+Funcionamiento:
+- Al quedar aprobada la Grand Final con un ganador, la web crea automáticamente
+  el All-Star Game.
+- Se toman los ocho mejores jugadores del ranking general Mapa Neutral.
+- Equipo Alpha (azul): posiciones 1, 3, 5 y 7.
+- Equipo Bravo (rojo): posiciones 2, 4, 6 y 8.
+- El partido se configura como Mejor de 5 con cinco mapas.
+- Solo el administrador puede registrar o corregir el resultado del All-Star.
+- Se guardan estadísticas completas por mapa y por jugador:
+  bajas, muertes, asistencias, Hill Time, Objective Kills, Overloads,
+  Carrier Kills, Kills as Carrier, Plants y Defuses.
+- La sección All-Star muestra los rosters, el equipo original, la posición de
+  clasificación, el resultado y las estadísticas completas separadas por Alpha
+  y Bravo.
+- Las estadísticas del All-Star se almacenan aparte y no cambian el ranking ni
+  los MVP del torneo que se utilizaron para seleccionar a los ocho jugadores.
+
+PARA ACTUALIZAR SIN PERDER DATOS EN RAILWAY
+1. Conserva el mismo volumen montado en /app/storage.
+2. Conserva STORAGE_DIR=/app/storage.
+3. Reemplaza únicamente el código de la aplicación con esta versión.
+4. No subas una base de datos vacía y no borres el volumen.
+5. Al iniciar, las tablas nuevas se crean automáticamente dentro de la base
+   existente mediante CREATE TABLE IF NOT EXISTS.
