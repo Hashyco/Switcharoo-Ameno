@@ -141,6 +141,67 @@ function initDb() {
       updated_at TEXT NOT NULL,
       FOREIGN KEY(player_id) REFERENCES players(id) ON DELETE SET NULL
     );
+
+    -- El All-Star usa tablas independientes para no alterar los partidos,
+    -- resultados ni estadísticas que ya existen en instalaciones anteriores.
+    CREATE TABLE IF NOT EXISTS allstar_events (
+      id TEXT PRIMARY KEY,
+      label TEXT NOT NULL,
+      best_of INTEGER NOT NULL DEFAULT 5,
+      status TEXT NOT NULL DEFAULT 'scheduled',
+      winner_team TEXT,
+      score_a INTEGER,
+      score_b INTEGER,
+      champion_team_id TEXT,
+      evidence_path TEXT,
+      notes TEXT,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      FOREIGN KEY(champion_team_id) REFERENCES teams(id)
+    );
+    CREATE TABLE IF NOT EXISTS allstar_roster (
+      event_id TEXT NOT NULL,
+      player_id TEXT NOT NULL,
+      allstar_team TEXT NOT NULL CHECK(allstar_team IN ('alpha','bravo')),
+      seed INTEGER NOT NULL,
+      original_team_id TEXT NOT NULL,
+      PRIMARY KEY(event_id,player_id),
+      UNIQUE(event_id,seed),
+      FOREIGN KEY(event_id) REFERENCES allstar_events(id) ON DELETE CASCADE,
+      FOREIGN KEY(player_id) REFERENCES players(id) ON DELETE CASCADE,
+      FOREIGN KEY(original_team_id) REFERENCES teams(id)
+    );
+    CREATE TABLE IF NOT EXISTS allstar_maps (
+      id TEXT PRIMARY KEY,
+      event_id TEXT NOT NULL,
+      map_index INTEGER NOT NULL,
+      mode TEXT NOT NULL,
+      map_name TEXT NOT NULL,
+      score_a INTEGER,
+      score_b INTEGER,
+      winner_team TEXT,
+      played INTEGER NOT NULL DEFAULT 0,
+      UNIQUE(event_id,map_index),
+      FOREIGN KEY(event_id) REFERENCES allstar_events(id) ON DELETE CASCADE
+    );
+    CREATE TABLE IF NOT EXISTS allstar_player_stats (
+      id TEXT PRIMARY KEY,
+      allstar_map_id TEXT NOT NULL,
+      player_id TEXT NOT NULL,
+      kills INTEGER NOT NULL DEFAULT 0,
+      deaths INTEGER NOT NULL DEFAULT 0,
+      assists INTEGER NOT NULL DEFAULT 0,
+      hill_time INTEGER NOT NULL DEFAULT 0,
+      objective_kills INTEGER NOT NULL DEFAULT 0,
+      plants INTEGER NOT NULL DEFAULT 0,
+      defuses INTEGER NOT NULL DEFAULT 0,
+      overloads INTEGER NOT NULL DEFAULT 0,
+      carrier_kills INTEGER NOT NULL DEFAULT 0,
+      kills_as_carrier INTEGER NOT NULL DEFAULT 0,
+      UNIQUE(allstar_map_id,player_id),
+      FOREIGN KEY(allstar_map_id) REFERENCES allstar_maps(id) ON DELETE CASCADE,
+      FOREIGN KEY(player_id) REFERENCES players(id) ON DELETE CASCADE
+    );
   `);
 
   // Migración segura para instalaciones que ya tienen resultados guardados.
@@ -377,6 +438,11 @@ const PERFORMANCE_WEIGHTS = Object.freeze({
   assistsPerMap:0.10
 });
 
+const ALLSTAR_TEAM_INFO = Object.freeze({
+  alpha:{id:"allstar-alpha",key:"alpha",name:"Alpha",element:"All-Star · Azul",logo:"/assets/allstar-alpha.svg",color:"#278cff"},
+  bravo:{id:"allstar-bravo",key:"bravo",name:"Bravo",element:"All-Star · Rojo",logo:"/assets/allstar-bravo.svg",color:"#f04444"}
+});
+
 function addImpactScore(row){
   const maps=Number(row.maps||row.maps_played||0);
   const kills=Number(row.kills||0);
@@ -501,6 +567,168 @@ function playerRanking(filters={}){
 }
 function playerStats(){ return playerRanking(); }
 
+function allStarQualification(){
+  const grandFinal=db.prepare("SELECT * FROM matches WHERE id='GF' LIMIT 1").get();
+  if(!grandFinal||grandFinal.approved!==1||!grandFinal.winner_id){
+    return {eligible:false,reason:"El All-Star Game se habilitará automáticamente cuando la Grand Final tenga un ganador aprobado."};
+  }
+  const ranking=playerRanking({onlyActive:true});
+  if(ranking.length<8){
+    return {eligible:false,grandFinal,ranking,reason:"La Grand Final terminó, pero se necesitan estadísticas aprobadas de al menos 8 jugadores para formar los equipos."};
+  }
+  return {eligible:true,grandFinal,ranking:ranking.slice(0,8)};
+}
+
+function syncAllStarGame(){
+  const existing=db.prepare("SELECT id,status FROM allstar_events WHERE id='ASG' LIMIT 1").get();
+  if(existing) return {created:false,event:existing};
+
+  const qualification=allStarQualification();
+  if(!qualification.eligible) return {created:false,reason:qualification.reason};
+
+  const eventId="ASG";
+  const maps=randomMaps(5);
+  const insertEvent=db.prepare(`INSERT INTO allstar_events(
+    id,label,best_of,status,champion_team_id,created_at,updated_at
+  ) VALUES(?,?,?,?,?,?,?)`);
+  const insertRoster=db.prepare(`INSERT INTO allstar_roster(
+    event_id,player_id,allstar_team,seed,original_team_id
+  ) VALUES(?,?,?,?,?)`);
+  const insertMap=db.prepare(`INSERT INTO allstar_maps(
+    id,event_id,map_index,mode,map_name,score_a,score_b,winner_team,played
+  ) VALUES(?,?,?,?,?,?,?,?,?)`);
+
+  db.exec("BEGIN");
+  try{
+    insertEvent.run(eventId,"All-Star Game",5,"scheduled",qualification.grandFinal.winner_id,now(),now());
+    qualification.ranking.forEach((player,index)=>{
+      const seed=index+1;
+      const allstarTeam=seed%2===1?"alpha":"bravo";
+      insertRoster.run(eventId,player.id,allstarTeam,seed,player.team_id);
+    });
+    maps.forEach(map=>insertMap.run(id("asmap"),eventId,map.index,map.mode,map.map,null,null,null,0));
+    db.exec("COMMIT");
+    return {created:true};
+  }catch(error){
+    db.exec("ROLLBACK");
+    throw error;
+  }
+}
+
+function allStarStats(eventId="ASG"){
+  const raw=db.prepare(`
+    SELECT r.player_id id,p.name,r.original_team_id,
+      original.name original_team_name,original.logo original_logo,original.color original_color,
+      r.allstar_team,r.seed,
+      COUNT(DISTINCT CASE WHEN am.played=1 AND aps.id IS NOT NULL THEN aps.allstar_map_id END) maps,
+      COALESCE(SUM(CASE WHEN am.played=1 THEN aps.kills ELSE 0 END),0) kills,
+      COALESCE(SUM(CASE WHEN am.played=1 THEN aps.deaths ELSE 0 END),0) deaths,
+      COALESCE(SUM(CASE WHEN am.played=1 THEN aps.assists ELSE 0 END),0) assists,
+      COALESCE(SUM(CASE WHEN am.played=1 THEN aps.hill_time ELSE 0 END),0) hill_time,
+      COALESCE(SUM(CASE WHEN am.played=1 THEN aps.objective_kills ELSE 0 END),0) objective_kills,
+      COALESCE(SUM(CASE WHEN am.played=1 THEN aps.plants ELSE 0 END),0) plants,
+      COALESCE(SUM(CASE WHEN am.played=1 THEN aps.defuses ELSE 0 END),0) defuses,
+      COALESCE(SUM(CASE WHEN am.played=1 THEN aps.overloads ELSE 0 END),0) overloads,
+      COALESCE(SUM(CASE WHEN am.played=1 THEN aps.carrier_kills ELSE 0 END),0) carrier_kills,
+      COALESCE(SUM(CASE WHEN am.played=1 THEN aps.kills_as_carrier ELSE 0 END),0) kills_as_carrier
+    FROM allstar_roster r
+    JOIN players p ON p.id=r.player_id
+    JOIN teams original ON original.id=r.original_team_id
+    LEFT JOIN allstar_player_stats aps ON aps.player_id=r.player_id
+    LEFT JOIN allstar_maps am ON am.id=aps.allstar_map_id AND am.event_id=r.event_id
+    WHERE r.event_id=?
+    GROUP BY r.player_id
+    ORDER BY r.seed
+  `).all(eventId).map(row=>{
+    const info=ALLSTAR_TEAM_INFO[row.allstar_team];
+    return addImpactScore({
+      ...row,
+      team_id:info.id,
+      team_name:info.name,
+      logo:info.logo,
+      color:info.color
+    });
+  });
+
+  return applyPerformanceRating(raw).map((row,index)=>({...row,position:index+1}));
+}
+
+function fullAllStar(){
+  const event=db.prepare("SELECT * FROM allstar_events WHERE id='ASG' LIMIT 1").get();
+  if(!event){
+    const qualification=allStarQualification();
+    return {
+      unlocked:false,
+      created:false,
+      reason:qualification.reason,
+      selectionRule:{alpha:[1,3,5,7],bravo:[2,4,6,8]}
+    };
+  }
+
+  const overall=playerRanking({onlyActive:true});
+  const qualificationByPlayer=Object.fromEntries(overall.map(player=>[player.id,player]));
+  const rosterRows=db.prepare(`
+    SELECT r.event_id,r.player_id,r.allstar_team,r.seed,r.original_team_id,
+      p.name,original.name original_team_name,original.logo original_logo,original.color original_color
+    FROM allstar_roster r
+    JOIN players p ON p.id=r.player_id
+    JOIN teams original ON original.id=r.original_team_id
+    WHERE r.event_id=?
+    ORDER BY r.seed
+  `).all(event.id).map(row=>({
+    ...row,
+    id:row.player_id,
+    allstar_seed:row.seed,
+    qualification_rating:Number(qualificationByPlayer[row.player_id]?.performance_rating||0),
+    qualification_kd:Number(qualificationByPlayer[row.player_id]?.kd||0)
+  }));
+
+  const teams=Object.values(ALLSTAR_TEAM_INFO).map(info=>({
+    ...info,
+    roster:rosterRows.filter(player=>player.allstar_team===info.key)
+  }));
+
+  const statsStmt=db.prepare("SELECT * FROM allstar_player_stats WHERE allstar_map_id=?");
+  const maps=db.prepare("SELECT * FROM allstar_maps WHERE event_id=? ORDER BY map_index").all(event.id).map(map=>({
+    ...map,
+    match_id:event.id,
+    winner_id:map.winner_team?ALLSTAR_TEAM_INFO[map.winner_team].id:null,
+    stats:statsStmt.all(map.id)
+  }));
+
+  const champion=event.champion_team_id?team(event.champion_team_id):null;
+  const stats=allStarStats(event.id);
+  const match={
+    id:event.id,
+    phase:"allstar",
+    stage:"All-Star Game",
+    label:event.label,
+    team_a:ALLSTAR_TEAM_INFO.alpha.id,
+    team_b:ALLSTAR_TEAM_INFO.bravo.id,
+    best_of:event.best_of,
+    status:event.status,
+    winner_id:event.winner_team?ALLSTAR_TEAM_INFO[event.winner_team].id:null,
+    score_a:event.score_a,
+    score_b:event.score_b,
+    evidence_path:event.evidence_path,
+    notes:event.notes,
+    approved:event.status==="completed"?1:0,
+    maps,
+    pickban:[]
+  };
+
+  return {
+    unlocked:true,
+    created:true,
+    champion,
+    teams,
+    match,
+    stats,
+    selectionRule:{alpha:[1,3,5,7],bravo:[2,4,6,8]},
+    generatedAt:event.created_at
+  };
+}
+
 function teamStats(){
   const rows = db.prepare(`
     SELECT t.id,t.name,t.logo,t.color,
@@ -589,6 +817,7 @@ function rankings(){
 
 function state(){
   syncBracketProgress();
+  syncAllStarGame();
   return {
     teams:db.prepare("SELECT * FROM teams").all().map(t=>({...t,roster:db.prepare("SELECT * FROM players WHERE team_id=? ORDER BY is_captain DESC,id").all(t.id)})),
     league:db.prepare("SELECT * FROM matches WHERE phase='league' ORDER BY round_no,id").all().map(m=>fullMatch(m.id)),
@@ -598,10 +827,11 @@ function state(){
     teamStats:teamStats(),
     awards:automaticAwards(),
     rankings:rankings(),
+    allStar:fullAllStar(),
     impactPoints:IMPACT_POINTS,
     performanceWeights:PERFORMANCE_WEIGHTS,
     ratingSystem:{
-      version:"3.4.1",
+      version:"3.5.0",
       name:"Mapa Neutral",
       objectiveMetric:"objective_score_per_map",
       description:"El número total de mapas no otorga ventaja directa en el rating."
@@ -718,6 +948,83 @@ app.post("/api/pickban/action",auth(),(req,res)=>{
   res.json(state());
 });
 
+app.post("/api/admin/allstar/results",auth("admin"),upload.single("evidence"),(req,res)=>{
+  syncAllStarGame();
+  const allStar=fullAllStar();
+  const m=allStar.match;
+  if(!allStar.created||!m) return res.status(400).json({error:allStar.reason||"El All-Star Game todavía no está disponible."});
+
+  let payload;
+  try{payload=JSON.parse(req.body.payload||"{}")}catch{return res.status(400).json({error:"Datos inválidos."})}
+  const maps=payload.maps||[];
+  const required=Math.floor(m.best_of/2)+1;
+  let wa=0,wb=0;
+  for(let i=0;i<m.maps.length;i++){
+    const result=maps[i]||{};
+    if(result.scoreA===""||result.scoreB===""||result.scoreA==null||result.scoreB==null) continue;
+    const scoreA=Number(result.scoreA),scoreB=Number(result.scoreB);
+    if(!Number.isInteger(scoreA)||!Number.isInteger(scoreB)||scoreA===scoreB){
+      return res.status(400).json({error:`Marcador inválido en M${i+1}.`});
+    }
+    if(scoreA<0||scoreB<0) return res.status(400).json({error:`Marcador negativo inválido en M${i+1}.`});
+    if(scoreA>scoreB) wa++; else wb++;
+  }
+  if(wa<required&&wb<required){
+    return res.status(400).json({error:`El All-Star Game necesita ${required} mapas ganados. Marcador actual: ${wa}-${wb}.`});
+  }
+
+  const winnerTeam=wa>wb?"alpha":"bravo";
+  const allowedPlayers=new Set(db.prepare("SELECT player_id FROM allstar_roster WHERE event_id='ASG'").all().map(row=>row.player_id));
+
+  db.exec("BEGIN");
+  try{
+    for(const map of m.maps){
+      db.prepare("DELETE FROM allstar_player_stats WHERE allstar_map_id=?").run(map.id);
+      db.prepare("UPDATE allstar_maps SET score_a=NULL,score_b=NULL,winner_team=NULL,played=0 WHERE id=?").run(map.id);
+    }
+
+    maps.forEach((result,index)=>{
+      if(result.scoreA===""||result.scoreB===""||result.scoreA==null||result.scoreB==null) return;
+      const map=m.maps[index];
+      const scoreA=Number(result.scoreA),scoreB=Number(result.scoreB);
+      const mapWinner=scoreA>scoreB?"alpha":"bravo";
+      db.prepare("UPDATE allstar_maps SET score_a=?,score_b=?,winner_team=?,played=1 WHERE id=?")
+        .run(scoreA,scoreB,mapWinner,map.id);
+
+      for(const stat of (result.stats||[])){
+        if(!allowedPlayers.has(stat.playerId)) throw new Error("Jugador no válido para el All-Star Game.");
+        db.prepare(`INSERT INTO allstar_player_stats(
+          id,allstar_map_id,player_id,kills,deaths,assists,hill_time,objective_kills,
+          plants,defuses,overloads,carrier_kills,kills_as_carrier
+        ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)
+          ON CONFLICT(allstar_map_id,player_id) DO UPDATE SET
+          kills=excluded.kills,deaths=excluded.deaths,assists=excluded.assists,
+          hill_time=excluded.hill_time,objective_kills=excluded.objective_kills,
+          plants=excluded.plants,defuses=excluded.defuses,overloads=excluded.overloads,
+          carrier_kills=excluded.carrier_kills,kills_as_carrier=excluded.kills_as_carrier`)
+          .run(
+            id("asstat"),map.id,stat.playerId,
+            Number(stat.kills)||0,Number(stat.deaths)||0,Number(stat.assists)||0,
+            Number(stat.hillTime)||0,Number(stat.objectiveKills)||0,
+            Number(stat.plants)||0,Number(stat.defuses)||0,Number(stat.overloads)||0,
+            Number(stat.carrierKills)||0,Number(stat.killsAsCarrier)||0
+          );
+      }
+    });
+
+    const evidence=req.file?`/uploads/${req.file.filename}`:m.evidence_path;
+    db.prepare(`UPDATE allstar_events SET
+      winner_team=?,score_a=?,score_b=?,evidence_path=?,notes=?,status='completed',updated_at=?
+      WHERE id='ASG'`)
+      .run(winnerTeam,wa,wb,evidence,String(payload.notes||"").slice(0,1000),now());
+    db.exec("COMMIT");
+    res.json(state());
+  }catch(error){
+    db.exec("ROLLBACK");
+    res.status(500).json({error:error.message});
+  }
+});
+
 app.post("/api/results/:matchId",auth(),upload.single("evidence"),(req,res)=>{
   const m=fullMatch(req.params.matchId);
   if(!m||!m.team_a||!m.team_b) return res.status(400).json({error:"Partido no disponible."});
@@ -814,6 +1121,8 @@ app.post("/api/admin/reset-tournament",auth("admin"),(req,res)=>{
   db.exec("BEGIN");
   try{
     // Los borrados en cascada eliminan mapas, estadísticas y acciones de Pick & Ban.
+    // El All-Star se elimina también para que vuelva a generarse con el próximo torneo.
+    db.prepare("DELETE FROM allstar_events").run();
     db.prepare("DELETE FROM awards").run();
     db.prepare("DELETE FROM matches").run();
     db.exec("COMMIT");

@@ -1,0 +1,21 @@
+SWITCHAROO AMENO PRO v3.5.0 — ALL-STAR GAME
+
+NUEVO
+- Pestaña All-Star Game visible en la navegación.
+- Generación automática después de la Grand Final aprobada.
+- Selección automática de los ocho mejores jugadores.
+- Alpha: ranking 1, 3, 5 y 7; color azul.
+- Bravo: ranking 2, 4, 6 y 8; color rojo.
+- Partido Mejor de 5 con cinco mapas.
+- Registro de resultado exclusivo del administrador.
+- Estadísticas completas por mapa y jugador.
+- Tablas separadas de estadísticas para Alpha y Bravo.
+- Visualización del equipo original y posición de clasificación.
+- Logos propios para Alpha y Bravo.
+- Acceso directo desde la Grand Final y Administración.
+
+PROTECCIÓN DE DATOS
+- Tablas nuevas e independientes.
+- Migración no destructiva.
+- El All-Star no altera el ranking ni los MVP utilizados para seleccionar a los jugadores.
+- El reinicio del torneo elimina también el All-Star para permitir una nueva generación.

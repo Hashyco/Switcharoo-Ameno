@@ -1,0 +1,50 @@
+SWITCHAROO AMENO PRO v3.5.0 — ACTUALIZACIÓN SEGURA
+====================================================
+
+ESTA VERSIÓN NO INCLUYE UNA BASE DE DATOS VACÍA.
+El código utiliza la base existente ubicada en STORAGE_DIR.
+
+CONFIGURACIÓN EN RAILWAY
+------------------------
+1. Mantén conectado el volumen actual al servicio.
+2. Mount Path del volumen: /app/storage
+3. Variable: STORAGE_DIR=/app/storage
+4. No elimines, reemplaces ni recrees el volumen.
+5. Actualiza únicamente los archivos del repositorio con los de esta carpeta.
+6. Railway ejecutará npm start y la aplicación abrirá la base existente.
+
+MIGRACIÓN AUTOMÁTICA
+--------------------
+Al iniciar, la aplicación ejecuta solamente CREATE TABLE IF NOT EXISTS para:
+- allstar_events
+- allstar_roster
+- allstar_maps
+- allstar_player_stats
+
+No se ejecuta DROP TABLE, no se vacían tablas existentes y no se reemplaza
+switcharoo.db. Tus equipos, usuarios, PIN, liguilla, brackets, resultados,
+estadísticas, Pick & Ban y evidencias permanecen intactos.
+
+ALL-STAR GAME
+-------------
+- Se crea automáticamente después de aprobar la Grand Final.
+- Usa los ocho mejores jugadores del ranking general.
+- Alpha (azul): 1, 3, 5 y 7.
+- Bravo (rojo): 2, 4, 6 y 8.
+- Formato: Mejor de 5.
+- Solo el administrador registra o corrige el resultado.
+- Las estadísticas del All-Star quedan separadas de las del torneo principal.
+
+RESPALDO RECOMENDADO ANTES DEL DEPLOY
+-------------------------------------
+Conserva una copia de:
+- /app/storage/switcharoo.db
+- /app/storage/switcharoo.db-wal
+- /app/storage/switcharoo.db-shm
+- /app/storage/uploads/
+
+Después del deploy, verifica:
+- Liguilla y resultados anteriores.
+- Brackets y Grand Final.
+- Ranking general y MVP.
+- Nueva pestaña All-Star Game.

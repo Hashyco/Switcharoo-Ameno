@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Equipo Bravo">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#ff7373"/><stop offset="1" stop-color="#bd1724"/></linearGradient>
+    <linearGradient id="gold" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#fff2b0"/><stop offset="1" stop-color="#d8992a"/></linearGradient>
+    <filter id="shadow"><feDropShadow dx="0" dy="16" stdDeviation="14" flood-opacity=".45"/></filter>
+  </defs>
+  <path filter="url(#shadow)" fill="#1c080b" stroke="url(#gold)" stroke-width="16" d="M256 28 442 94v146c0 119-73 203-186 244C143 443 70 359 70 240V94z"/>
+  <path fill="url(#bg)" d="M256 60 410 115v123c0 96-55 164-154 203-99-39-154-107-154-203V115z"/>
+  <path fill="#1c080b" opacity=".72" d="M256 94 376 136v99c0 74-39 126-120 162-81-36-120-88-120-162v-99z"/>
+  <path fill="url(#gold)" d="m256 116 35 72 80 12-58 56 14 79-71-37-71 37 14-79-58-56 80-12z"/>
+  <text x="256" y="383" text-anchor="middle" fill="white" font-family="Arial Black,Arial" font-size="82" font-weight="900">B</text>
+  <text x="256" y="430" text-anchor="middle" fill="#ffaaaa" font-family="Arial, sans-serif" font-size="28" font-weight="800" letter-spacing="7">BRAVO</text>
+</svg>

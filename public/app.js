@@ -3,8 +3,8 @@ const $=(q,r=document)=>r.querySelector(q), $$=(q,r=document)=>[...r.querySelect
 const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[c]));
 function toast(m,t="info"){const e=document.createElement("div");e.className=`toast ${t}`;e.textContent=m;$("#toast-root").append(e);setTimeout(()=>e.remove(),3500)}
 async function api(url,opt={}){const h={...(opt.headers||{})};if(S.token)h.Authorization=`Bearer ${S.token}`;if(opt.body&&!(opt.body instanceof FormData))h["Content-Type"]="application/json";const r=await fetch(url,{...opt,headers:h});const d=await r.json().catch(()=>({error:"Respuesta inválida"}));if(!r.ok)throw new Error(d.error||"Error");return d}
-const team=id=>S.state?.teams.find(t=>t.id===id);
-const match=id=>[...(S.state?.league||[]),...(S.state?.bracket||[])].find(m=>m.id===id);
+const team=id=>S.state?.teams.find(t=>t.id===id)||S.state?.allStar?.teams?.find(t=>t.id===id);
+const match=id=>[...(S.state?.league||[]),...(S.state?.bracket||[]),...(S.state?.allStar?.match?[S.state.allStar.match]:[])].find(m=>m.id===id);
 function shell(){if(!S.state)return;$("#session-label").textContent=S.user?(S.user.role==="admin"?"Administrador":team(S.user.teamId)?.name):"Invitado";$("#login-btn").textContent=S.user?"Salir":"Entrar";$$(".admin-only").forEach(x=>x.classList.toggle("hidden",S.user?.role!=="admin"));$$("#nav button").forEach(b=>b.classList.toggle("active",b.dataset.page===S.page));$("#login-team").innerHTML=S.state.teams.map(t=>`<option value="${t.id}">${esc(t.name)}</option>`).join("")}
 async function load(){try{S.state=await api("/api/state");shell();render()}catch(e){$("#app").innerHTML=`<section class="empty-state"><div><h2>No se pudo cargar</h2><p>${esc(e.message)}</p></div></section>`}}
 function cardTeam(t){return `<article class="card team-card" style="--team:${t.color}"><div class="team-card-head"><img class="team-logo" src="${t.logo}"><div class="team-element">${esc(t.element)}</div><h3>${esc(t.name)}</h3></div><ul class="roster-list">${t.roster.map((p,i)=>`<li><span class="roster-index">${i+1}</span><strong>${esc(p.name)}</strong>${p.is_captain?'<span class="captain-tag">CAPITÁN</span>':""}</li>`).join("")}</ul></article>`}
@@ -12,6 +12,7 @@ function standings(){return `<div class="table-wrap"><table><thead><tr><th>Pos.<
 function mapStrip(m){return `<div class="map-strip ${m.best_of===7?"bo7":""}">${m.maps.map((x,i)=>`<div class="map-chip"><small>M${i+1} · ${esc(x.mode)}</small><strong>${esc(x.map_name)}</strong></div>`).join("")}</div>`}
 function canSubmit(m){
   if(!S.user||m.status==="pending"||!m.team_a||!m.team_b||m.maps.length!==m.best_of)return false;
+  if(m.phase==="allstar")return S.user.role==="admin";
   if(S.user.role==="admin")return true;
   if(m.approved)return false;
   return [m.team_a,m.team_b].includes(S.user.teamId);
@@ -82,8 +83,61 @@ function grandFinalPage(){
   if(canSubmit(gf))actions.push(`<button class="btn btn-secondary" data-result="${gf.id}">${gf.approved&&S.user?.role==="admin"?"Editar resultado":"Subir resultado"}</button>`);
   if(gf.status==="pending"&&S.user?.role==="admin")actions.push(`<button class="btn btn-success" data-approve="${gf.id}">Aprobar resultado</button><button class="btn btn-danger" data-reject="${gf.id}">Rechazar</button>`);
   const mvp=S.state.awards?.grandFinal;
-  return `<section class="gf-hero"><div class="gf-topline"><span>SWITCHAROO AMENO</span><strong>GRAND FINAL · BO7</strong><span>PICK & BAN</span></div><div class="gf-versus">${finalTeamPanel(a,"left")}<div class="gf-center"><img src="/assets/league.png"><div class="gf-vs">VS</div>${gf.approved?`<div class="gf-final-score">${gf.score_a} — ${gf.score_b}</div>`:'<div class="gf-status">La batalla final</div>'}${mvp?.id?`<div class="gf-mvp"><small>MVP ACTUAL</small><strong>${esc(mvp.name)}</strong><span>${rating(mvp.performance_rating)} rating</span></div>`:""}</div>${finalTeamPanel(b,"right")}</div><div class="gf-actions">${actions.join("")}</div>${gf.maps?.length?`<div class="gf-map-section"><h3>Mapas de la Grand Final</h3>${mapStrip(gf)}</div>`:""}</section><h3 class="section-title">Comparativa de los finalistas</h3><section class="card card-body">${teamStatsTable(S.state.teamStats.filter(t=>[a.id,b.id].includes(t.id)))}</section><h3 class="section-title">Estadísticas exclusivas de la Grand Final</h3><section class="card card-body">${grandFinalPlayerTable([a,b])}</section>`;
+  return `<section class="gf-hero"><div class="gf-topline"><span>SWITCHAROO AMENO</span><strong>GRAND FINAL · BO7</strong><span>PICK & BAN</span></div><div class="gf-versus">${finalTeamPanel(a,"left")}<div class="gf-center"><img src="/assets/league.png"><div class="gf-vs">VS</div>${gf.approved?`<div class="gf-final-score">${gf.score_a} — ${gf.score_b}</div>`:'<div class="gf-status">La batalla final</div>'}${mvp?.id?`<div class="gf-mvp"><small>MVP ACTUAL</small><strong>${esc(mvp.name)}</strong><span>${rating(mvp.performance_rating)} rating</span></div>`:""}</div>${finalTeamPanel(b,"right")}</div><div class="gf-actions">${actions.join("")}</div>${gf.maps?.length?`<div class="gf-map-section"><h3>Mapas de la Grand Final</h3>${mapStrip(gf)}</div>`:""}${gf.approved?`<div class="gf-allstar-cta"><div><strong>All-Star Game habilitado</strong><span>Los ocho mejores jugadores ya fueron distribuidos entre Alpha y Bravo.</span></div><button class="btn btn-gold" data-page-link="allstar">Ver All-Star Game</button></div>`:""}</section><h3 class="section-title">Comparativa de los finalistas</h3><section class="card card-body">${teamStatsTable(S.state.teamStats.filter(t=>[a.id,b.id].includes(t.id)))}</section><h3 class="section-title">Estadísticas exclusivas de la Grand Final</h3><section class="card card-body">${grandFinalPlayerTable([a,b])}</section>`;
 }
+function allStarRosterCard(t){
+  return `<article class="allstar-team-card ${t.key}" style="--allstar-color:${t.color}">
+    <div class="allstar-team-head"><img src="${t.logo}"><div><div class="eyebrow">ALL-STAR TEAM</div><h3>${esc(t.name)}</h3><span>${esc(t.element)}</span></div></div>
+    <div class="allstar-roster">${t.roster.map(player=>`<div class="allstar-roster-player">
+      <span class="allstar-seed">#${player.allstar_seed}</span>
+      <div><strong>${esc(player.name)}</strong><small>${esc(player.original_team_name)}</small></div>
+      <b>${rating(player.qualification_rating)}<small> rating</small></b>
+    </div>`).join("")}</div>
+  </article>`;
+}
+
+function allStarStatsTable(rows){
+  return `<div class="table-wrap"><table><thead><tr>
+    <th>Pos.</th><th>Jugador</th><th>Equipo All-Star</th><th>Equipo original</th><th>Rating ASG</th><th>K/D</th><th>Obj./Mapa</th><th>Bajas/Mapa</th><th>Asist./Mapa</th><th>Mapas</th><th>Bajas</th><th>Muertes</th><th>Asist.</th><th>Obj. Total</th><th>Obj. Kills</th><th>Hill</th><th>Overloads</th><th>Carrier Kills</th><th>Kills as Carrier</th><th>Plants</th><th>Defuses</th>
+  </tr></thead><tbody>${rows.map(player=>`<tr>
+    <td><span class="rank">${player.position}</span></td>
+    <td><strong>${esc(player.name)}</strong><small class="table-subline">Clasificado #${player.seed}</small></td>
+    <td><strong class="allstar-team-name ${player.allstar_team}">${esc(player.team_name)}</strong></td>
+    <td>${esc(player.original_team_name)}</td>
+    <td><strong>${rating(player.performance_rating)}</strong></td><td>${Number(player.kd||0).toFixed(2)}</td>
+    <td>${Number(player.objective_score_per_map||0).toFixed(1)}</td><td>${Number(player.kills_per_map||0).toFixed(2)}</td><td>${Number(player.assists_per_map||0).toFixed(2)}</td>
+    <td>${player.maps}</td><td>${player.kills}</td><td>${player.deaths}</td><td>${player.assists}</td><td>${points(player.objective_score)}</td>
+    <td>${player.objective_kills}</td><td>${player.hill_time}s</td><td>${player.overloads}</td><td>${player.carrier_kills}</td><td>${player.kills_as_carrier}</td><td>${player.plants}</td><td>${player.defuses}</td>
+  </tr>`).join("")}</tbody></table></div>`;
+}
+
+function allStarPage(){
+  const allStar=S.state.allStar||{};
+  const rules=`<section class="card card-body allstar-rules"><div><span class="rule-team alpha">ALPHA</span><strong>Posiciones 1, 3, 5 y 7</strong></div><div><span class="rule-team bravo">BRAVO</span><strong>Posiciones 2, 4, 6 y 8</strong></div><p>Los ocho jugadores se toman automáticamente del ranking general Mapa Neutral al quedar aprobada la Grand Final.</p></section>`;
+
+  if(!allStar.created){
+    return head("All-Star Game","Los ocho mejores jugadores del torneo · Mejor de 5")+`<section class="allstar-locked"><div class="allstar-lock-icon">★</div><div><div class="eyebrow">EVENTO AUTOMÁTICO</div><h2>Alpha vs Bravo</h2><p>${esc(allStar.reason||"Se habilitará después de la Grand Final.")}</p><span>Bo5 · Estadísticas completas · Equipos por posiciones alternadas</span></div></section>${rules}`;
+  }
+
+  const alpha=allStar.teams.find(team=>team.key==="alpha");
+  const bravo=allStar.teams.find(team=>team.key==="bravo");
+  const game=allStar.match;
+  const winner=game.winner_id?team(game.winner_id):null;
+  const stats=allStar.stats||[];
+  const alphaStats=stats.filter(player=>player.allstar_team==="alpha");
+  const bravoStats=stats.filter(player=>player.allstar_team==="bravo");
+
+  return `<section class="allstar-hero">
+    <div class="allstar-hero-copy"><div class="eyebrow">SWITCHAROO AMENO · POST GRAND FINAL</div><h2>ALL-STAR <span>GAME</span></h2><p>Los ocho mejores jugadores, redistribuidos automáticamente para un enfrentamiento especial Mejor de 5.</p>${allStar.champion?`<div class="allstar-champion"><span>CAMPEÓN DEL TORNEO</span><img src="${allStar.champion.logo}"><strong>${esc(allStar.champion.name)}</strong></div>`:""}</div>
+    <div class="allstar-score-hero"><img src="${alpha.logo}"><div><small>${game.approved?"RESULTADO FINAL":"MEJOR DE 5"}</small><strong>${game.approved?`${game.score_a} — ${game.score_b}`:"VS"}</strong>${winner?`<span>Ganador: ${esc(winner.name)}</span>`:"<span>Alpha vs Bravo</span>"}</div><img src="${bravo.logo}"></div>
+  </section>
+  ${rules}
+  <section class="allstar-team-grid">${allStarRosterCard(alpha)}${allStarRosterCard(bravo)}</section>
+  <h3 class="section-title">Partido All-Star</h3><section class="card card-body allstar-match-card">${matchCard(game)}</section>
+  <h3 class="section-title">Estadísticas completas · Alpha</h3><section class="card card-body allstar-stats alpha">${allStarStatsTable(alphaStats)}</section>
+  <h3 class="section-title">Estadísticas completas · Bravo</h3><section class="card card-body allstar-stats bravo">${allStarStatsTable(bravoStats)}</section>`;
+}
+
 function statsPage(){
   const awards=S.state.awards||{};
   return head("Estadísticas","Rating Mapa Neutral: jugar más mapas no aumenta directamente la posición.")+`<section class="score-formula card card-body"><h3>Fórmula Mapa Neutral</h3><p class="muted">Las cuatro variables se expresan como razón o promedio. Un jugador con 5 mapas y otro con 15 mapas recibirán el mismo rating si mantienen exactamente el mismo rendimiento por mapa. Las estadísticas acumuladas se muestran como información, pero no ordenan la tabla.</p><div class="formula-grid"><span>K/D normalizado <b>35%</b></span><span>Objective Score por mapa normalizado <b>25%</b></span><span>Bajas por mapa normalizadas <b>30%</b></span><span>Asistencias por mapa normalizadas <b>10%</b></span></div><h4>Composición del Objective Score</h4><div class="formula-grid"><span>Overload <b>+300</b></span><span>Carrier Kill <b>+125</b></span><span>Kill as Carrier <b>+125</b></span><span>Plant <b>+100</b></span><span>Defuse <b>+100</b></span><span>Objective Kill <b>+125</b></span><span>Cada 5 s en Hill <b>+15</b></span></div></section>
@@ -99,11 +153,12 @@ function statsPage(){
 function adminPage(){
   if(S.user?.role!=="admin")return home();
   const tournament=S.state.awards?.tournament;
-  return head("Administración","Rosters, PIN, resultados, reinicio y MVP calculados automáticamente.")+`<section class="grid grid-2"><article class="card card-body"><h3>Rosters y PIN</h3><form id="roster-form" class="simple-form">${S.state.teams.map(t=>`<div class="admin-team-editor"><div class="admin-team-editor-head"><img src="${t.logo}"><strong>${esc(t.name)}</strong></div>${t.roster.map(p=>`<label>${p.is_captain?"Capitán":"Jugador"}<input data-player="${p.id}" data-team="${t.id}" value="${esc(p.name)}"></label>`).join("")}<label>Nuevo PIN<input type="password" data-pin="${t.id}" placeholder="Opcional"></label></div>`).join("")}<label>Nuevo PIN admin<input id="admin-pin" type="password" placeholder="Opcional"></label><button class="btn btn-gold">Guardar rosters y PIN</button></form></article><div class="simple-form"><article class="card card-body"><h3>MVP automático del torneo</h3>${tournament?.id?`<div class="auto-mvp"><img src="${tournament.logo}"><div><strong>${esc(tournament.name)}</strong><span>${esc(tournament.team_name)}</span><b>${rating(tournament.performance_rating)} rating</b></div></div>`:'<p class="muted">Se calculará al aprobar resultados con estadísticas.</p>'}<p class="muted">Los MVP de jornada, modalidad, equipo y Grand Final se calculan automáticamente.</p></article><article class="card card-body"><h3>Resultados pendientes</h3>${[...S.state.league,...S.state.bracket].filter(m=>m.status==="pending").map(matchCard).join("")||'<p class="muted">No hay resultados pendientes.</p>'}</article><article class="card card-body danger-zone"><div class="danger-zone-head"><div><div class="eyebrow">ZONA DE PELIGRO</div><h3>Reiniciar torneo</h3></div><span>⚠</span></div><p>Elimina liguilla, brackets, resultados, estadísticas, Pick & Ban, MVP y evidencias. Conserva equipos, jugadores y PIN.</p><button id="reset-tournament" class="btn btn-danger">Reiniciar todos los datos</button></article></div></section>`;
+  return head("Administración","Rosters, PIN, resultados, reinicio, MVP y All-Star automáticos.")+`<section class="grid grid-2"><article class="card card-body"><h3>Rosters y PIN</h3><form id="roster-form" class="simple-form">${S.state.teams.map(t=>`<div class="admin-team-editor"><div class="admin-team-editor-head"><img src="${t.logo}"><strong>${esc(t.name)}</strong></div>${t.roster.map(p=>`<label>${p.is_captain?"Capitán":"Jugador"}<input data-player="${p.id}" data-team="${t.id}" value="${esc(p.name)}"></label>`).join("")}<label>Nuevo PIN<input type="password" data-pin="${t.id}" placeholder="Opcional"></label></div>`).join("")}<label>Nuevo PIN admin<input id="admin-pin" type="password" placeholder="Opcional"></label><button class="btn btn-gold">Guardar rosters y PIN</button></form></article><div class="simple-form"><article class="card card-body"><h3>MVP automático del torneo</h3>${tournament?.id?`<div class="auto-mvp"><img src="${tournament.logo}"><div><strong>${esc(tournament.name)}</strong><span>${esc(tournament.team_name)}</span><b>${rating(tournament.performance_rating)} rating</b></div></div>`:'<p class="muted">Se calculará al aprobar resultados con estadísticas.</p>'}<p class="muted">Los MVP de jornada, modalidad, equipo y Grand Final se calculan automáticamente.</p></article><article class="card card-body"><h3>All-Star Game</h3>${S.state.allStar?.created?`<p><strong>Alpha vs Bravo</strong> ya fue creado con los ocho mejores jugadores.</p><button type="button" class="btn btn-secondary" data-page-link="allstar">Abrir All-Star</button>`:`<p class="muted">${esc(S.state.allStar?.reason||"Se generará al terminar la Grand Final.")}</p>`}</article><article class="card card-body"><h3>Resultados pendientes</h3>${[...S.state.league,...S.state.bracket].filter(m=>m.status==="pending").map(matchCard).join("")||'<p class="muted">No hay resultados pendientes.</p>'}</article><article class="card card-body danger-zone"><div class="danger-zone-head"><div><div class="eyebrow">ZONA DE PELIGRO</div><h3>Reiniciar torneo</h3></div><span>⚠</span></div><p>Elimina liguilla, brackets, All-Star Game, resultados, estadísticas, Pick & Ban, MVP y evidencias. Conserva equipos, jugadores y PIN.</p><button id="reset-tournament" class="btn btn-danger">Reiniciar todos los datos</button></article></div></section>`;
 }
 
-function render(){shell();const p={home,teams:teamsPage,league:leaguePage,bracket:bracketPage,grandfinal:grandFinalPage,stats:statsPage,admin:adminPage}[S.page]||home;$("#app").innerHTML=p();bind()}
+function render(){shell();const p={home,teams:teamsPage,league:leaguePage,bracket:bracketPage,grandfinal:grandFinalPage,allstar:allStarPage,stats:statsPage,admin:adminPage}[S.page]||home;$("#app").innerHTML=p();bind()}
 function bind(){
+  $$("[data-page-link]").forEach(button=>button.onclick=()=>{S.page=button.dataset.pageLink;location.hash=S.page;render()});
   $$("[data-result]").forEach(b=>b.onclick=()=>openResult(b.dataset.result));
   $$("[data-approve]").forEach(b=>b.onclick=()=>review(b.dataset.approve,true));
   $$("[data-reject]").forEach(b=>b.onclick=()=>review(b.dataset.reject,false));
@@ -200,7 +255,7 @@ function renderResultWizard(){
   const progress=Math.round(((i+1)/m.best_of)*100);
   $("#result-root").innerHTML=`
     <div class="rw-header">
-      <div><div class="eyebrow">${m.approved&&S.user?.role==="admin"?"EDICIÓN DE RESULTADO":"REGISTRO RÁPIDO DE RESULTADOS"}</div><h2>${esc(m.label)} · Bo${m.best_of}</h2><p>${esc(a.name)} vs ${esc(b.name)}</p></div>
+      <div><div class="eyebrow">${m.phase==="allstar"?"ALL-STAR GAME · ESTADÍSTICAS COMPLETAS":m.approved&&S.user?.role==="admin"?"EDICIÓN DE RESULTADO":"REGISTRO RÁPIDO DE RESULTADOS"}</div><h2>${esc(m.label)} · Bo${m.best_of}</h2><p>${esc(a.name)} vs ${esc(b.name)}</p></div>
       <div class="rw-series-score"><div><img src="${a.logo}"><strong>${ss.a}</strong></div><span>SERIE</span><div><strong>${ss.b}</strong><img src="${b.logo}"></div></div>
     </div>
     <div class="rw-progress"><span style="width:${progress}%"></span></div>
@@ -242,11 +297,11 @@ function renderResultReview(){
     <div class="rw-review">
       <div class="eyebrow">CONFIRMAR RESULTADO</div><h2>${esc(a.name)} ${ss.a} — ${ss.b} ${esc(b.name)}</h2>
       <div class="rw-review-maps">${m.maps.map((mm,i)=>{const x=d.maps[i];return x.scoreA===""?"":`<div><span>M${i+1}</span><strong>${esc(mm.map_name)}</strong><small>${x.scoreA} — ${x.scoreB}</small></div>`}).join("")}</div>
-      <p class="muted">${m.approved&&S.user?.role==="admin"?"Esta corrección se guardará inmediatamente y actualizará las estadísticas acumuladas.":"El reporte quedará pendiente hasta que el administrador lo apruebe. Puede enviarlo cualquiera de los dos capitanes del partido."}</p><div class="result-grid">
+      <p class="muted">${m.phase==="allstar"?"El resultado y las estadísticas del All-Star Game se guardarán inmediatamente. Solo el administrador puede registrarlos o corregirlos.":m.approved&&S.user?.role==="admin"?"Esta corrección se guardará inmediatamente y actualizará las estadísticas acumuladas.":"El reporte quedará pendiente hasta que el administrador lo apruebe. Puede enviarlo cualquiera de los dos capitanes del partido."}</p><div class="result-grid">
         <label>Evidencia opcional<input id="wizard-evidence" type="file" accept="image/*"></label>
         <label>Notas opcionales<textarea id="wizard-notes">${esc(d.notes)}</textarea></label>
       </div>
-      <div class="rw-navigation"><button type="button" id="rw-edit" class="btn btn-secondary">← Editar mapas</button><button type="button" id="rw-submit" class="btn btn-gold">${m.approved&&S.user?.role==="admin"?"Guardar corrección":"Enviar resultado para aprobación"}</button></div>
+      <div class="rw-navigation"><button type="button" id="rw-edit" class="btn btn-secondary">← Editar mapas</button><button type="button" id="rw-submit" class="btn btn-gold">${m.phase==="allstar"?(m.approved?"Guardar corrección All-Star":"Guardar All-Star Game"):m.approved&&S.user?.role==="admin"?"Guardar corrección":"Enviar resultado para aprobación"}</button></div>
     </div>`;
   $("#rw-edit").onclick=()=>renderResultWizard();
   $("#rw-submit").onclick=submitResultWizard;
@@ -259,9 +314,10 @@ async function submitResultWizard(){
   fd.append("payload",JSON.stringify({maps:d.maps,notes:d.notes}));
   if(d.evidence)fd.append("evidence",d.evidence);
   try{
-    S.state=await api(`/api/results/${m.id}`,{method:"POST",body:fd});
+    const endpoint=m.phase==="allstar"?"/api/admin/allstar/results":`/api/results/${m.id}`;
+    S.state=await api(endpoint,{method:"POST",body:fd});
     $("#result-modal").close();S.resultDraft=null;
-    toast("Resultado enviado para aprobación","success");render();
+    toast(m.phase==="allstar"?"All-Star Game guardado":"Resultado enviado para aprobación","success");render();
   }catch(err){toast(err.message,"error")}
 };
 const PB_POOLS={
